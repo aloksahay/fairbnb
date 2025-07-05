@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		5CCA46502E1930110043113A /* MoproFFI in Frameworks */ = {isa = PBXBuildFile; productRef = 5CCA464F2E1930110043113A /* MoproFFI */; };
+		5CCA46572E1955390043113A /* Privy in Frameworks */ = {isa = PBXBuildFile; productRef = 5CCA46562E1955390043113A /* Privy */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,6 +29,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				5CCA46502E1930110043113A /* MoproFFI in Frameworks */,
+				5CCA46572E1955390043113A /* Privy in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -71,6 +73,7 @@
 			name = Fairbnb;
 			packageProductDependencies = (
 				5CCA464F2E1930110043113A /* MoproFFI */,
+				5CCA46562E1955390043113A /* Privy */,
 			);
 			productName = Fairbnb;
 			productReference = 5CCA46322E1924E20043113A /* Fairbnb.app */;
@@ -102,6 +105,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				5CCA464E2E1930110043113A /* XCRemoteSwiftPackageReference "mopro-swift-package" */,
+				5CCA46552E1955390043113A /* XCRemoteSwiftPackageReference "privy-ios" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 5CCA46332E1924E20043113A /* Products */;
@@ -343,6 +347,14 @@
 				kind = branch;
 			};
 		};
+		5CCA46552E1955390043113A /* XCRemoteSwiftPackageReference "privy-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/privy-io/privy-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.1.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -350,6 +362,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 5CCA464E2E1930110043113A /* XCRemoteSwiftPackageReference "mopro-swift-package" */;
 			productName = MoproFFI;
+		};
+		5CCA46562E1955390043113A /* Privy */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5CCA46552E1955390043113A /* XCRemoteSwiftPackageReference "privy-ios" */;
+			productName = Privy;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

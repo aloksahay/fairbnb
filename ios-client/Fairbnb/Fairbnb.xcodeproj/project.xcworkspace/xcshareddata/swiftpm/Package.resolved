@@ -1,5 +1,5 @@
 {
-  "originHash" : "3f0e07e96529e07f362cf96cec17094f61e009fb882d6d59a684854eff861392",
+  "originHash" : "fd2252c02e1f3160d2ec56001d4aa3b16abba519fcbaeefbec68a0edc52a8510",
   "pins" : [
     {
       "identity" : "mopro-swift-package",
@@ -8,6 +8,15 @@
       "state" : {
         "branch" : "main",
         "revision" : "f8cc224203d01ed2f6a26ad9b3e6c73537ab09f4"
+      }
+    },
+    {
+      "identity" : "privy-ios",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/privy-io/privy-ios",
+      "state" : {
+        "revision" : "066b2cda4de65d6f253eb7c44c0ad06a27f17e4d",
+        "version" : "2.1.0"
       }
     }
   ],

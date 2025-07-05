@@ -8,79 +8,146 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var locationService = LocationService()
-    @StateObject private var zkProofService: ZKProofService
-    @StateObject private var cameraService: CameraService
-    
-    @State private var selectedTab = 0
-    
-    init() {
-        let locationService = LocationService()
-        let zkProofService = ZKProofService(locationService: locationService)
-        let cameraService = CameraService(locationService: locationService)
-        
-        self._zkProofService = StateObject(wrappedValue: zkProofService)
-        self._cameraService = StateObject(wrappedValue: cameraService)
-    }
+    @StateObject private var authService = PrivyAuthService()
+    @State private var showingLoginSheet = false
+    @State private var showingWalletSheet = false
+    @State private var showingPrivateKeyExport = false
     
     var body: some View {
-        TabView(selection: $selectedTab) {
-            // Home Tab
-            HomeView(
-                locationService: locationService,
-                zkProofService: zkProofService
-            )
-            .tabItem {
-                Image(systemName: "house.fill")
-                Text("Home")
+        Group {
+            if authService.isAuthenticated {
+                DashboardView(authService: authService, showingWalletSheet: $showingWalletSheet)
+            } else {
+                LoginView(authService: authService, showingLoginSheet: $showingLoginSheet)
             }
-            .tag(0)
-            
-            // Search Tab
-            SearchView(
-                locationService: locationService,
-                zkProofService: zkProofService
-            )
-            .tabItem {
-                Image(systemName: "magnifyingglass")
-                Text("Search")
-            }
-            .tag(1)
-            
-            // Host Tab
-            HostView(
-                locationService: locationService,
-                zkProofService: zkProofService,
-                cameraService: cameraService
-            )
-            .tabItem {
-                Image(systemName: "plus.circle")
-                Text("Host")
-            }
-            .tag(2)
-            
-            // Profile Tab
-            ProfileView(
-                locationService: locationService,
-                zkProofService: zkProofService
-            )
-            .tabItem {
-                Image(systemName: "person.circle")
-                Text("Profile")
-            }
-            .tag(3)
         }
-        .accentColor(.blue)
-        .onAppear {
-            // Request location permission when app starts
-            locationService.requestLocationPermission()
+        .sheet(isPresented: $showingLoginSheet) {
+            EmailLoginView(authService: authService)
+        }
+        .sheet(isPresented: $showingWalletSheet) {
+            WalletView(authService: authService)
+        }
+        .sheet(isPresented: $showingPrivateKeyExport) {
+            NavigationView {
+                PrivateKeyExportWebView(
+                    appId: "cmcq8l3l2037bju0mf1dc0oou",
+                    userEmail: authService.currentUser?.email ?? "user@example.com",
+                    isPresented: $showingPrivateKeyExport
+                )
+                .navigationTitle("Export Private Key")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Done") {
+                            showingPrivateKeyExport = false
+                        }
+                    }
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openPrivateKeyExport)) { _ in
+            showingPrivateKeyExport = true
         }
     }
 }
 
-struct HomeView: View {
-    @ObservedObject var locationService: LocationService
-    @ObservedObject var zkProofService: ZKProofService
+// MARK: - Login View
+struct LoginView: View {
+    @ObservedObject var authService: PrivyAuthService
+    @Binding var showingLoginSheet: Bool
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 32) {
+                Spacer()
+                
+                // App Logo and Title
+                VStack(spacing: 16) {
+                    Image(systemName: "house.fill")
+                        .font(.system(size: 80))
+                        .foregroundColor(.blue)
+                    
+                    Text("FairBnB")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .foregroundColor(.blue)
+                    
+                    Text("Privacy-First Home Sharing")
+                        .font(.title3)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                
+                // Features
+                VStack(spacing: 16) {
+                    FeatureRow(icon: "shield.checkered", title: "Zero-Knowledge Privacy", description: "Your exact location stays private")
+                    FeatureRow(icon: "wallet.pass", title: "Embedded Wallet", description: "Secure crypto payments built-in")
+                    FeatureRow(icon: "lock.shield", title: "Self-Custodial", description: "You control your keys and funds")
+                }
+                .padding(.horizontal)
+                
+                Spacer()
+                
+                // Login Button
+                Button(action: {
+                    showingLoginSheet = true
+                }) {
+                    HStack {
+                        Image(systemName: "envelope.fill")
+                        Text("Sign In with Email")
+                    }
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.blue)
+                    .cornerRadius(12)
+                }
+                .padding(.horizontal)
+                
+                Text("New to FairBnB? Sign up during login")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                Spacer()
+            }
+            .padding()
+            .navigationBarHidden(true)
+        }
+    }
+}
+
+struct FeatureRow: View {
+    let icon: String
+    let title: String
+    let description: String
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundColor(.blue)
+                .frame(width: 32)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                
+                Text(description)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+        }
+    }
+}
+
+// MARK: - Dashboard View
+struct DashboardView: View {
+    @ObservedObject var authService: PrivyAuthService
+    @Binding var showingWalletSheet: Bool
     
     var body: some View {
         NavigationView {
@@ -90,219 +157,175 @@ struct HomeView: View {
                     VStack(spacing: 16) {
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Welcome to")
+                                Text("Welcome back!")
                                     .font(.title2)
                                     .foregroundColor(.secondary)
                                 
-                                Text("FairBnB")
-                                    .font(.largeTitle)
-                                    .fontWeight(.bold)
-                                    .foregroundColor(.blue)
+                                if let user = authService.currentUser {
+                                    Text(user.email)
+                                        .font(.headline)
+                                        .fontWeight(.medium)
+                                } else {
+                                    Text("FairBnB User")
+                                        .font(.headline)
+                                        .fontWeight(.medium)
+                                }
                             }
                             
                             Spacer()
                             
-                            Image(systemName: "house.fill")
-                                .font(.system(size: 40))
-                                .foregroundColor(.blue)
+                            // Profile Avatar
+                            Button(action: {
+                                // Profile action
+                            }) {
+                                Image(systemName: "person.circle.fill")
+                                    .font(.system(size: 40))
+                                    .foregroundColor(.blue)
+                            }
                         }
-                        
-                        Text("Privacy-First Home Sharing with Zero-Knowledge Location Proofs")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.leading)
                     }
                     .padding()
                     .background(Color.blue.opacity(0.1))
                     .cornerRadius(16)
                     
-                    // Location Status
-                    LocationStatusCard(locationService: locationService)
-                    
-                    // ZK Proof Demo
-                    ZKProofDemoCard(
-                        locationService: locationService,
-                        zkProofService: zkProofService
-                    )
+                    // Wallet Card
+                    WalletCard(authService: authService, showingWalletSheet: $showingWalletSheet)
                     
                     // Quick Actions
-                    QuickActionsCard(zkProofService: zkProofService)
+                    QuickActionsCard()
                     
-                    // How It Works
-                    HowItWorksCard()
+                    // App Status
+                    AppStatusCard()
                     
                     Spacer(minLength: 50)
                 }
                 .padding()
             }
-            .navigationTitle("FairBnB")
+            .navigationTitle("Dashboard")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Sign Out") {
+                        Task {
+                            await authService.signOut()
+                        }
+                    }
+                    .foregroundColor(.red)
+                }
+            }
         }
     }
 }
 
-struct LocationStatusCard: View {
-    @ObservedObject var locationService: LocationService
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "location.fill")
-                    .foregroundColor(locationService.isLocationEnabled ? .green : .orange)
-                Text("Location Privacy")
-                    .font(.headline)
-                Spacer()
-            }
-            
-            if let approximateLocation = locationService.approximateLocation {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Approximate Location:")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                        Spacer()
-                    }
-                    
-                    Text(approximateLocation.cityName.isEmpty ? "Unknown City" : approximateLocation.cityName)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                    
-                    Text("Coordinates: \(LocationService.formatApproximateCoordinate(approximateLocation.latitude)), \(LocationService.formatApproximateCoordinate(approximateLocation.longitude))")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            } else if locationService.isLocationEnabled {
-                Text("Getting your approximate location...")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Location access is required for privacy-preserving location proofs")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    
-                    Button("Enable Location") {
-                        locationService.requestLocationPermission()
-                    }
-                    .font(.subheadline)
-                    .foregroundColor(.blue)
-                }
-            }
-            
-            if let error = locationService.locationError {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(error.localizedDescription)
-                        .font(.caption)
-                        .foregroundColor(.red)
-                    
-                    if let suggestion = error.recoverySuggestion {
-                        Text(suggestion)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
-        }
-        .padding()
-        .background(Color.white)
-        .cornerRadius(16)
-        .shadow(radius: 2)
-    }
-}
-
-struct ZKProofDemoCard: View {
-    @ObservedObject var locationService: LocationService
-    @ObservedObject var zkProofService: ZKProofService
-    
-    @State private var selectedRadius: Double = 1.0
-    @State private var showingProofDetails = false
+// MARK: - Wallet Card
+struct WalletCard: View {
+    @ObservedObject var authService: PrivyAuthService
+    @Binding var showingWalletSheet: Bool
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Image(systemName: "shield.checkered")
-                    .foregroundColor(.purple)
-                Text("Zero-Knowledge Location Proof")
+                Image(systemName: "wallet.pass.fill")
+                    .foregroundColor(.green)
+                Text("Embedded Wallet")
                     .font(.headline)
                 Spacer()
-            }
-            
-            Text("Generate a cryptographic proof that you're within a radius without revealing your exact location")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            
-            // Radius Selection
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Privacy Radius: \(LocationService.formatDistance(selectedRadius))")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
                 
-                HStack {
-                    Text("0.5km")
-                        .font(.caption)
-                    Slider(value: $selectedRadius, in: 0.5...5.0, step: 0.5)
-                    Text("5km")
-                        .font(.caption)
+                if authService.isWalletLoading {
+                    ProgressView()
+                        .scaleEffect(0.8)
                 }
             }
             
-            // Generate Proof Button
-            Button(action: {
-                Task {
-                    await generateLocationProof()
-                }
-            }) {
-                HStack {
-                    if zkProofService.isGeneratingProof {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                    } else {
-                        Image(systemName: "lock.shield")
-                    }
-                    Text(zkProofService.isGeneratingProof ? "Generating Proof..." : "Generate Location Proof")
-                }
-                .font(.subheadline)
-                .fontWeight(.medium)
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(locationService.isLocationEnabled ? Color.purple : Color.gray)
-                .cornerRadius(12)
-            }
-            .disabled(!locationService.isLocationEnabled || zkProofService.isGeneratingProof)
-            
-            // Proof Result
-            if let proofResult = zkProofService.lastProofResult {
+            if let wallet = authService.userWallet {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Image(systemName: proofResult.isValid ? "checkmark.circle.fill" : "xmark.circle.fill")
-                            .foregroundColor(proofResult.isValid ? .green : .red)
-                        Text(proofResult.isValid ? "Proof Generated Successfully" : "Proof Generation Failed")
+                        Text("Balance:")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text("\(authService.walletBalance) ETH")
                             .font(.subheadline)
                             .fontWeight(.medium)
                     }
                     
-                    Button("View Proof Details") {
-                        showingProofDetails = true
-                    }
-                    .font(.caption)
-                    .foregroundColor(.blue)
-                }
-                .padding()
-                .background(proofResult.isValid ? Color.green.opacity(0.1) : Color.red.opacity(0.1))
-                .cornerRadius(8)
-            }
-            
-            if let error = zkProofService.proofError {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(error.localizedDescription)
-                        .font(.caption)
-                        .foregroundColor(.red)
-                    
-                    if let suggestion = error.recoverySuggestion {
-                        Text(suggestion)
+                    HStack {
+                        Text("Address:")
                             .font(.caption)
                             .foregroundColor(.secondary)
+                        Spacer()
+                        Text(wallet.displayAddress)
+                            .font(.caption)
+                            .fontWeight(.medium)
+                    }
+                }
+                
+                VStack(spacing: 12) {
+                    Button(action: {
+                        showingWalletSheet = true
+                    }) {
+                        HStack {
+                            Image(systemName: "arrow.up.arrow.down")
+                            Text("Manage Wallet")
+                        }
+                        .font(.subheadline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.green)
+                        .cornerRadius(12)
+                    }
+                    
+                    // Debug: Export Private Key Options (for development only)
+                    HStack(spacing: 8) {
+                        // Mock Private Key Export
+                        Button(action: {
+                            Task {
+                                await authService.exportPrivateKey()
+                            }
+                        }) {
+                            VStack(spacing: 4) {
+                                Image(systemName: "key.fill")
+                                Text("Mock Key")
+                                    .font(.caption2)
+                            }
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(Color.orange.opacity(0.1))
+                            .cornerRadius(8)
+                        }
+                        
+                        // Real Private Key Export via WebView
+                        Button(action: {
+                            authService.openPrivateKeyExportWebView()
+                        }) {
+                            VStack(spacing: 4) {
+                                Image(systemName: "globe")
+                                Text("Real Key")
+                                    .font(.caption2)
+                            }
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(8)
+                        }
+                    }
+                }
+                
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Your embedded wallet is being set up...")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    if let error = authService.walletError {
+                        Text(error.localizedDescription)
+                            .font(.caption)
+                            .foregroundColor(.red)
                     }
                 }
             }
@@ -311,35 +334,11 @@ struct ZKProofDemoCard: View {
         .background(Color.white)
         .cornerRadius(16)
         .shadow(radius: 2)
-        .sheet(isPresented: $showingProofDetails) {
-            ProofDetailsView(proofResult: zkProofService.lastProofResult)
-        }
-    }
-    
-    private func generateLocationProof() async {
-        guard let currentLocation = locationService.currentLocation else {
-            return
-        }
-        
-        let approximateCenter = locationService.suggestApproximateCenter(
-            for: currentLocation.coordinate,
-            radiusKm: selectedRadius
-        )
-        
-        let _ = await zkProofService.generateLocationProof(
-            actualLocation: currentLocation.coordinate,
-            approximateCenter: approximateCenter,
-            radiusKm: selectedRadius
-        )
     }
 }
 
+// MARK: - Quick Actions Card
 struct QuickActionsCard: View {
-    @ObservedObject var zkProofService: ZKProofService
-    @State private var showingAlert = false
-    @State private var alertTitle = ""
-    @State private var alertMessage = ""
-    
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Quick Actions")
@@ -354,7 +353,7 @@ struct QuickActionsCard: View {
                     title: "Search Properties",
                     color: .blue
                 ) {
-                    // Navigate to search
+                    // Coming soon
                 }
                 
                 QuickActionButton(
@@ -362,7 +361,7 @@ struct QuickActionsCard: View {
                     title: "List Property",
                     color: .green
                 ) {
-                    // Navigate to host
+                    // Coming soon
                 }
                 
                 QuickActionButton(
@@ -370,7 +369,7 @@ struct QuickActionsCard: View {
                     title: "Privacy Settings",
                     color: .purple
                 ) {
-                    // Navigate to privacy settings
+                    // Coming soon
                 }
                 
                 QuickActionButton(
@@ -378,24 +377,7 @@ struct QuickActionsCard: View {
                     title: "Learn More",
                     color: .orange
                 ) {
-                    // Navigate to info
-                }
-                
-                QuickActionButton(
-                    icon: "hammer.circle",
-                    title: "Test ZKMoPro",
-                    color: .indigo
-                ) {
-                    Task {
-                        let success = await zkProofService.testZKMoproIntegration()
-                        await MainActor.run {
-                            showingAlert = true
-                            alertTitle = "ZKMoPro Integration Test"
-                            alertMessage = success ? 
-                                "✅ Mock test completed successfully!\n\n💡 To use real ZK proofs:\n1. Add MoproFFI package\n2. Add .zkey files to bundle\n3. Uncomment integration code" :
-                                "❌ Test failed"
-                        }
-                    }
+                    // Coming soon
                 }
             }
         }
@@ -403,11 +385,6 @@ struct QuickActionsCard: View {
         .background(Color.white)
         .cornerRadius(16)
         .shadow(radius: 2)
-        .alert(alertTitle, isPresented: $showingAlert) {
-            Button("OK") { }
-        } message: {
-            Text(alertMessage)
-        }
     }
 }
 
@@ -435,34 +412,21 @@ struct QuickActionButton: View {
             .background(color.opacity(0.1))
             .cornerRadius(12)
         }
-        .buttonStyle(PlainButtonStyle())
     }
 }
 
-struct HowItWorksCard: View {
+// MARK: - App Status Card
+struct AppStatusCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("How Privacy-First Location Works")
+            Text("App Status")
                 .font(.headline)
             
-            VStack(spacing: 16) {
-                HowItWorksStep(
-                    number: 1,
-                    title: "Capture Location",
-                    description: "Take a photo or get your current GPS coordinates"
-                )
-                
-                HowItWorksStep(
-                    number: 2,
-                    title: "Generate ZK Proof",
-                    description: "Create a cryptographic proof that you're within a radius"
-                )
-                
-                HowItWorksStep(
-                    number: 3,
-                    title: "Share Privately",
-                    description: "Others can verify your general area without knowing exact location"
-                )
+            VStack(spacing: 12) {
+                StatusRow(title: "Privy Authentication", status: .connected, description: "Email login active")
+                StatusRow(title: "Embedded Wallet", status: .connected, description: "Wallet created successfully")
+                StatusRow(title: "ZK Location Proofs", status: .pending, description: "Feature coming soon")
+                StatusRow(title: "Property Search", status: .pending, description: "Feature coming soon")
             }
         }
         .padding()
@@ -472,22 +436,37 @@ struct HowItWorksCard: View {
     }
 }
 
-struct HowItWorksStep: View {
-    let number: Int
+struct StatusRow: View {
     let title: String
+    let status: StatusType
     let description: String
+    
+    enum StatusType {
+        case connected, pending, error
+        
+        var color: Color {
+            switch self {
+            case .connected: return .green
+            case .pending: return .orange
+            case .error: return .red
+            }
+        }
+        
+        var icon: String {
+            switch self {
+            case .connected: return "checkmark.circle.fill"
+            case .pending: return "clock.circle.fill"
+            case .error: return "xmark.circle.fill"
+            }
+        }
+    }
     
     var body: some View {
         HStack(spacing: 12) {
-            Text("\(number)")
-                .font(.headline)
-                .fontWeight(.bold)
-                .foregroundColor(.white)
-                .frame(width: 30, height: 30)
-                .background(Color.blue)
-                .clipShape(Circle())
+            Image(systemName: status.icon)
+                .foregroundColor(status.color)
             
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.subheadline)
                     .fontWeight(.medium)
@@ -498,80 +477,6 @@ struct HowItWorksStep: View {
             }
             
             Spacer()
-        }
-    }
-}
-
-struct ProofDetailsView: View {
-    let proofResult: ZKProofResult?
-    @Environment(\.dismiss) private var dismiss
-    
-    var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    if let result = proofResult {
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text("Proof Status")
-                                .font(.headline)
-                            
-                            HStack {
-                                Image(systemName: result.isValid ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                    .foregroundColor(result.isValid ? .green : .red)
-                                Text(result.isValid ? "Valid" : "Invalid")
-                                    .fontWeight(.medium)
-                            }
-                            
-                            if let error = result.error {
-                                Text("Error: \(error)")
-                                    .font(.subheadline)
-                                    .foregroundColor(.red)
-                            }
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text("Public Signals")
-                                .font(.headline)
-                            
-                            ForEach(Array(result.publicSignals.enumerated()), id: \.offset) { index, signal in
-                                HStack {
-                                    Text("Signal \(index + 1):")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                    Text(signal)
-                                        .font(.subheadline)
-                                        .fontWeight(.medium)
-                                }
-                            }
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text("Proof Hash")
-                                .font(.headline)
-                            
-                            Text(result.proof.prefix(50) + "...")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .padding()
-                                .background(Color.gray.opacity(0.1))
-                                .cornerRadius(8)
-                        }
-                    } else {
-                        Text("No proof data available")
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .padding()
-            }
-            .navigationTitle("Proof Details")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-            }
         }
     }
 }
