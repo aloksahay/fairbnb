@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var authService = PrivyAuthService()
+    @StateObject private var authService = PrivyAuthService.shared
     @State private var showingLoginSheet = false
     @State private var showingWalletSheet = false
     @State private var showingPrivateKeyExport = false
@@ -16,7 +16,7 @@ struct ContentView: View {
     var body: some View {
         Group {
             if authService.isAuthenticated {
-                MainTabView(authService: authService, showingWalletSheet: $showingWalletSheet)
+                ListingsView(authService: authService, showingWalletSheet: $showingWalletSheet)
             } else {
                 LoginView(authService: authService, showingLoginSheet: $showingLoginSheet)
             }
@@ -31,7 +31,7 @@ struct ContentView: View {
             NavigationView {
                 PrivateKeyExportWebView(
                     appId: "cmcq8l3l2037bju0mf1dc0oou",
-                    userEmail: authService.currentUser?.email ?? "user@example.com",
+                    userEmail: authService.currentUser?.email ?? "no-email@example.com",
                     isPresented: $showingPrivateKeyExport
                 )
                 .navigationTitle("Export Private Key")
@@ -144,110 +144,214 @@ struct FeatureRow: View {
     }
 }
 
-// MARK: - Main Tab View
-struct MainTabView: View {
-    @ObservedObject var authService: PrivyAuthService
-    @Binding var showingWalletSheet: Bool
-    
-    var body: some View {
-        TabView {
-            DashboardView(authService: authService, showingWalletSheet: $showingWalletSheet)
-                .tabItem {
-                    Image(systemName: "house.fill")
-                    Text("Home")
-                }
-            
-            SelfVerificationView()
-                .tabItem {
-                    Image(systemName: "checkmark.shield.fill")
-                    Text("Verify ID")
-                }
-            
-            WalletTabView(authService: authService, showingWalletSheet: $showingWalletSheet)
-                .tabItem {
-                    Image(systemName: "wallet.pass.fill")
-                    Text("Wallet")
-                }
-            
-            ProfileTabView(authService: authService)
-                .tabItem {
-                    Image(systemName: "person.fill")
-                    Text("Profile")
-                }
-        }
-        .accentColor(.blue)
-    }
-}
 
-// MARK: - Dashboard View
-struct DashboardView: View {
+
+// MARK: - Listings View
+struct ListingsView: View {
     @ObservedObject var authService: PrivyAuthService
     @Binding var showingWalletSheet: Bool
+    @State private var showingProfileMenu = false
     
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Welcome Header
-                    VStack(spacing: 16) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Welcome back!")
-                                    .font(.title2)
-                                    .foregroundColor(.secondary)
-                                
-                                if let user = authService.currentUser {
-                                    Text(user.email)
-                                        .font(.headline)
-                                        .fontWeight(.medium)
-                                } else {
-                                    Text("FairBnB User")
-                                        .font(.headline)
-                                        .fontWeight(.medium)
-                                }
-                            }
-                            
-                            Spacer()
-                            
-                            // Profile Avatar
-                            Button(action: {
-                                // Profile action
-                            }) {
-                                Image(systemName: "person.circle.fill")
-                                    .font(.system(size: 40))
-                                    .foregroundColor(.blue)
-                            }
+            VStack(spacing: 0) {
+                // Listings Section
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Your Listings")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .padding(.horizontal)
+                    
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 16) {
+                            // Add Listing Button
+                            AddListingCard()
                         }
+                        .padding(.horizontal)
                     }
-                    .padding()
-                    .background(Color.blue.opacity(0.1))
-                    .cornerRadius(16)
-                    
-                    // Wallet Card
-                    WalletCard(authService: authService, showingWalletSheet: $showingWalletSheet)
-                    
-                    // Quick Actions
-                    QuickActionsCard()
-                    
-                    // App Status
-                    AppStatusCard()
-                    
-                    Spacer(minLength: 50)
                 }
-                .padding()
+                .padding(.top)
+                
+                Spacer()
             }
-            .navigationTitle("Dashboard")
+            .navigationTitle("Listings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Sign Out") {
-                        Task {
-                            await authService.signOut()
-                        }
+                    Button(action: {
+                        showingProfileMenu = true
+                    }) {
+                        Image(systemName: "line.horizontal.3")
+                            .font(.title2)
+                            .foregroundColor(.primary)
                     }
-                    .foregroundColor(.red)
                 }
             }
+            .sheet(isPresented: $showingProfileMenu) {
+                ProfileMenuView(authService: authService, isPresented: $showingProfileMenu)
+            }
+        }
+    }
+}
+
+// MARK: - Listing Models
+struct Listing {
+    let id = UUID()
+    let title: String
+    let location: String
+    let nightlyRate: Int
+    let imageName: String
+}
+
+// MARK: - Listing Card
+struct ListingCard: View {
+    let listing: Listing
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Image placeholder
+            Rectangle()
+                .fill(Color.gray.opacity(0.3))
+                .frame(width: 200, height: 120)
+                .cornerRadius(12)
+                .overlay(
+                    Image(systemName: listing.imageName)
+                        .font(.system(size: 40))
+                        .foregroundColor(.gray)
+                )
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(listing.title)
+                    .font(.headline)
+                    .fontWeight(.medium)
+                    .lineLimit(2)
+                
+                Text(listing.location)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                
+                Text("$\(listing.nightlyRate)/night")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.green)
+            }
+        }
+        .frame(width: 200)
+        .padding()
+        .background(Color.white)
+        .cornerRadius(16)
+        .shadow(radius: 2)
+    }
+}
+
+// MARK: - Add Listing Card
+struct AddListingCard: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "plus.circle.fill")
+                .font(.system(size: 50))
+                .foregroundColor(.blue)
+            
+            Text("Add New Listing")
+                .font(.headline)
+                .fontWeight(.medium)
+                .foregroundColor(.primary)
+        }
+        .frame(width: 200, height: 200)
+        .background(Color.blue.opacity(0.1))
+        .cornerRadius(16)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.blue, style: StrokeStyle(lineWidth: 2, dash: [5]))
+        )
+    }
+}
+
+// MARK: - Profile Menu View
+struct ProfileMenuView: View {
+    @ObservedObject var authService: PrivyAuthService
+    @Binding var isPresented: Bool
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 24) {
+                // Profile Header
+                VStack(spacing: 16) {
+                    Image(systemName: "person.circle.fill")
+                        .font(.system(size: 80))
+                        .foregroundColor(.blue)
+                    
+                    VStack(spacing: 8) {
+                        Text("Profile")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                        
+                        if let user = authService.currentUser {
+                            Text(user.email)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                .padding()
+                
+                // Profile Information
+                VStack(alignment: .leading, spacing: 16) {
+                    ProfileInfoRow(label: "Email", value: authService.currentUser?.email ?? "Not available")
+                    
+                    if let wallet = authService.userWallet {
+                        ProfileInfoRow(label: "Wallet Address", value: wallet.displayAddress)
+                    } else {
+                        ProfileInfoRow(label: "Wallet Address", value: "Loading...")
+                    }
+                }
+                .padding()
+                .background(Color(.systemGray6))
+                .cornerRadius(12)
+                
+                Spacer()
+                
+                // Sign Out Button
+                Button("Sign Out") {
+                    Task {
+                        await authService.signOut()
+                        isPresented = false
+                    }
+                }
+                .foregroundColor(.red)
+                .font(.headline)
+                .padding()
+            }
+            .padding()
+            .navigationTitle("Profile")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        isPresented = false
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Profile Info Row
+struct ProfileInfoRow: View {
+    let label: String
+    let value: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .textCase(.uppercase)
+            
+            Text(value)
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundColor(.primary)
         }
     }
 }
@@ -315,9 +419,7 @@ struct WalletCard: View {
                     HStack(spacing: 8) {
                         // Mock Private Key Export
                         Button(action: {
-                            Task {
-                                await authService.exportPrivateKey()
-                            }
+                            print("Mock private key export - feature coming soon")
                         }) {
                             VStack(spacing: 4) {
                                 Image(systemName: "key.fill")
@@ -334,10 +436,10 @@ struct WalletCard: View {
                         
                         // Real Private Key Export via WebView
                         Button(action: {
-                            authService.openPrivateKeyExportWebView()
+                            print("Real private key export - feature coming soon")
                         }) {
                             VStack(spacing: 4) {
-            Image(systemName: "globe")
+                                Image(systemName: "globe")
                                 Text("Real Key")
                                     .font(.caption2)
                             }
@@ -516,99 +618,7 @@ struct StatusRow: View {
     }
 }
 
-// MARK: - Additional Tab Views
 
-struct WalletTabView: View {
-    @ObservedObject var authService: PrivyAuthService
-    @Binding var showingWalletSheet: Bool
-    
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 20) {
-                WalletCard(authService: authService, showingWalletSheet: $showingWalletSheet)
-                
-                Spacer()
-            }
-            .padding()
-            .navigationTitle("Wallet")
-        }
-    }
-}
-
-struct ProfileTabView: View {
-    @ObservedObject var authService: PrivyAuthService
-    
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 20) {
-                // Profile Header
-                VStack(spacing: 16) {
-                    Image(systemName: "person.circle.fill")
-                        .font(.system(size: 80))
-                        .foregroundColor(.blue)
-                    
-                    if let user = authService.currentUser {
-                        Text(user.email)
-                            .font(.title2)
-                            .fontWeight(.medium)
-                    }
-                }
-                .padding()
-                
-                // Profile Options
-                VStack(spacing: 12) {
-                    ProfileOptionRow(icon: "gear", title: "Settings", action: {})
-                    ProfileOptionRow(icon: "questionmark.circle", title: "Help & Support", action: {})
-                    ProfileOptionRow(icon: "info.circle", title: "About", action: {})
-                }
-                .padding()
-                .background(Color(.systemGray6))
-                .cornerRadius(12)
-                
-                Spacer()
-                
-                // Sign Out Button
-                Button("Sign Out") {
-                    Task {
-                        await authService.signOut()
-                    }
-                }
-                .foregroundColor(.red)
-                .padding()
-            }
-            .padding()
-            .navigationTitle("Profile")
-        }
-    }
-}
-
-struct ProfileOptionRow: View {
-    let icon: String
-    let title: String
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            HStack {
-                Image(systemName: icon)
-                    .foregroundColor(.blue)
-                    .frame(width: 24)
-                
-                Text(title)
-                    .foregroundColor(.primary)
-                
-                Spacer()
-                
-                Image(systemName: "chevron.right")
-                    .foregroundColor(.secondary)
-                    .font(.caption)
-            }
-            .padding()
-            .background(Color.white)
-            .cornerRadius(8)
-        }
-    }
-}
 
 #Preview {
     ContentView()
