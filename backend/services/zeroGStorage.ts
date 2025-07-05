@@ -100,12 +100,12 @@ export class ZeroGStorageService {
       fs.writeFileSync(tempFilePath, buffer);
       
       // Upload the temporary file
-      const result = await this.uploadFile(tempFilePath, fileName);
-      return {
-        ...result,
-        mimeType,
-        fileSize: buffer.length,
-      };
+        const result = await this.uploadFile(tempFilePath, fileName);
+        return {
+          ...result,
+          mimeType,
+          fileSize: buffer.length,
+        };
       
     } catch (error) {
       console.error('❌ Buffer upload failed:', error);

@@ -12,6 +12,9 @@ interface Config {
     indexerRpc: string;
     privateKey: string;
   };
+  zeroGCompute: {
+    fallbackFee: number;
+  };
   jwt: {
     secret: string;
     expiresIn: string;
@@ -41,6 +44,9 @@ const config: Config = {
     rpcUrl: process.env.ZEROG_RPC_URL || 'https://evmrpc-testnet.0g.ai/',
     indexerRpc: process.env.ZEROG_INDEXER_RPC || 'https://indexer-storage-testnet-turbo.0g.ai',
     privateKey: process.env.ZEROG_PRIVATE_KEY || '',
+  },
+  zeroGCompute: {
+    fallbackFee: parseFloat(process.env.ZEROG_FALLBACK_FEE || '0.01'),
   },
   jwt: {
     secret: process.env.JWT_SECRET || 'fallback-secret-key',

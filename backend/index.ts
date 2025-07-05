@@ -5,6 +5,8 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import config from './config';
 import fileRoutes from './routes/fileRoutes';
+import imageAnalysisRoutes from './routes/imageAnalysisRoutes';
+import selfVerificationRoutes from './routes/selfVerificationRoutes';
 import { errorHandler, notFound } from './middleware/errorHandler';
 
 const app = express();
@@ -52,6 +54,8 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use('/api/files', fileRoutes);
+app.use('/api/image-analysis', imageAnalysisRoutes);
+app.use('/api/self-verification', selfVerificationRoutes);
 
 // API documentation endpoint
 app.get('/api', (req, res) => {
@@ -65,6 +69,19 @@ app.get('/api', (req, res) => {
         'POST /api/files/upload-multiple': 'Upload multiple files',
         'GET /api/files/:rootHash': 'Download a file',
         'GET /api/files/:rootHash/info': 'Get file information',
+      },
+      textAnalysis: {
+        'POST /api/image-analysis/analyze': 'Analyze text to extract names using llama-3.3-70b-instruct AI',
+        'GET /api/image-analysis/account': 'Get 0G Compute account information',
+        'GET /api/image-analysis/providers': 'Get available AI providers',
+      },
+      selfVerification: {
+        'GET /api/self-verification/health': 'Health check for Self verification service',
+        'GET /api/self-verification/status/:userAddress': 'Get verification status for a user',
+        'GET /api/self-verification/config': 'Generate Self configuration for frontend',
+        'GET /api/self-verification/requirements/:userType': 'Get verification requirements for user type',
+        'GET /api/self-verification/types': 'Get all verification types',
+        'POST /api/self-verification/validate': 'Validate a verification proof',
       },
       health: {
         'GET /health': 'Health check',

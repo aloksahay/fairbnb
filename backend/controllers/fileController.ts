@@ -5,7 +5,7 @@ import { ApiResponse, MulterRequest, MulterMultipleRequest } from '../types';
 export const uploadFile = async (req: Request, res: Response): Promise<void> => {
   try {
     if (!req.file) {
-      res.status(400).json({ 
+      res.status(400).json({
         error: 'No file uploaded',
         message: 'Please provide a file to upload'
       });
@@ -21,7 +21,7 @@ export const uploadFile = async (req: Request, res: Response): Promise<void> => 
     
     // Upload to 0G Storage
     const result = await zeroGStorage.uploadFromBuffer(buffer, originalname, mimetype);
-    
+
     res.json({
       success: true,
       message: 'File uploaded successfully',
@@ -35,7 +35,7 @@ export const uploadFile = async (req: Request, res: Response): Promise<void> => 
         downloadUrl: zeroGStorage.generateFileUrl(result.rootHash, result.fileName)
       }
     });
-    
+
   } catch (error) {
     console.error('Upload controller error:', error);
     
@@ -88,20 +88,20 @@ export const downloadFile = async (req: Request, res: Response): Promise<void> =
   try {
     const { rootHash } = req.params;
     const { filename } = req.query;
-    
+
     if (!rootHash) {
-      res.status(400).json({ 
+      res.status(400).json({
         error: 'Missing root hash',
         message: 'Root hash is required for download'
       });
       return;
     }
-    
+
     console.log(`📥 Processing download: ${rootHash}`);
     
     // Download from 0G Storage
     const result = await zeroGStorage.downloadFile(rootHash, filename as string);
-    
+
     // Set appropriate headers
     res.set({
       'Content-Type': result.mimeType,
@@ -109,9 +109,9 @@ export const downloadFile = async (req: Request, res: Response): Promise<void> =
       'Content-Disposition': `attachment; filename="${result.fileName}"`,
       'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
     });
-    
+
     res.send(result.data);
-    
+
   } catch (error) {
     console.error('Download controller error:', error);
     
@@ -163,7 +163,7 @@ export const getFileInfo = async (req: Request, res: Response): Promise<void> =>
 export const checkFileExists = async (req: Request, res: Response): Promise<void> => {
   try {
     const { rootHash } = req.params;
-    
+
     if (!rootHash) {
       res.status(400).json({
         success: false,
@@ -171,7 +171,7 @@ export const checkFileExists = async (req: Request, res: Response): Promise<void
       });
       return;
     }
-    
+
     // For now, assume file exists if we have a valid root hash
     // In a production system, you would check the actual availability
     res.json({
@@ -219,7 +219,7 @@ export const getNetworkStatus = async (req: Request, res: Response): Promise<voi
         timestamp: new Date().toISOString()
       }
     });
-    
+
   } catch (error) {
     console.error('Network status controller error:', error);
     

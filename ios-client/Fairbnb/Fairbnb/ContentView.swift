@@ -16,7 +16,7 @@ struct ContentView: View {
     var body: some View {
         Group {
             if authService.isAuthenticated {
-                DashboardView(authService: authService, showingWalletSheet: $showingWalletSheet)
+                MainTabView(authService: authService, showingWalletSheet: $showingWalletSheet)
             } else {
                 LoginView(authService: authService, showingLoginSheet: $showingLoginSheet)
             }
@@ -141,6 +141,41 @@ struct FeatureRow: View {
             
             Spacer()
         }
+    }
+}
+
+// MARK: - Main Tab View
+struct MainTabView: View {
+    @ObservedObject var authService: PrivyAuthService
+    @Binding var showingWalletSheet: Bool
+    
+    var body: some View {
+        TabView {
+            DashboardView(authService: authService, showingWalletSheet: $showingWalletSheet)
+                .tabItem {
+                    Image(systemName: "house.fill")
+                    Text("Home")
+                }
+            
+            SelfVerificationView()
+                .tabItem {
+                    Image(systemName: "checkmark.shield.fill")
+                    Text("Verify ID")
+                }
+            
+            WalletTabView(authService: authService, showingWalletSheet: $showingWalletSheet)
+                .tabItem {
+                    Image(systemName: "wallet.pass.fill")
+                    Text("Wallet")
+                }
+            
+            ProfileTabView(authService: authService)
+                .tabItem {
+                    Image(systemName: "person.fill")
+                    Text("Profile")
+                }
+        }
+        .accentColor(.blue)
     }
 }
 
@@ -302,7 +337,7 @@ struct WalletCard: View {
                             authService.openPrivateKeyExportWebView()
                         }) {
                             VStack(spacing: 4) {
-                                Image(systemName: "globe")
+            Image(systemName: "globe")
                                 Text("Real Key")
                                     .font(.caption2)
                             }
@@ -477,6 +512,100 @@ struct StatusRow: View {
             }
             
             Spacer()
+        }
+    }
+}
+
+// MARK: - Additional Tab Views
+
+struct WalletTabView: View {
+    @ObservedObject var authService: PrivyAuthService
+    @Binding var showingWalletSheet: Bool
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                WalletCard(authService: authService, showingWalletSheet: $showingWalletSheet)
+                
+                Spacer()
+            }
+            .padding()
+            .navigationTitle("Wallet")
+        }
+    }
+}
+
+struct ProfileTabView: View {
+    @ObservedObject var authService: PrivyAuthService
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                // Profile Header
+                VStack(spacing: 16) {
+                    Image(systemName: "person.circle.fill")
+                        .font(.system(size: 80))
+                        .foregroundColor(.blue)
+                    
+                    if let user = authService.currentUser {
+                        Text(user.email)
+                            .font(.title2)
+                            .fontWeight(.medium)
+                    }
+                }
+                .padding()
+                
+                // Profile Options
+                VStack(spacing: 12) {
+                    ProfileOptionRow(icon: "gear", title: "Settings", action: {})
+                    ProfileOptionRow(icon: "questionmark.circle", title: "Help & Support", action: {})
+                    ProfileOptionRow(icon: "info.circle", title: "About", action: {})
+                }
+                .padding()
+                .background(Color(.systemGray6))
+                .cornerRadius(12)
+                
+                Spacer()
+                
+                // Sign Out Button
+                Button("Sign Out") {
+                    Task {
+                        await authService.signOut()
+                    }
+                }
+                .foregroundColor(.red)
+                .padding()
+            }
+            .padding()
+            .navigationTitle("Profile")
+        }
+    }
+}
+
+struct ProfileOptionRow: View {
+    let icon: String
+    let title: String
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Image(systemName: icon)
+                    .foregroundColor(.blue)
+                    .frame(width: 24)
+                
+                Text(title)
+                    .foregroundColor(.primary)
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.secondary)
+                    .font(.caption)
+            }
+            .padding()
+            .background(Color.white)
+            .cornerRadius(8)
         }
     }
 }
