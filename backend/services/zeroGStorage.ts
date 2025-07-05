@@ -1,0 +1,257 @@
+import { ZgFile, Indexer } from '@0glabs/0g-ts-sdk';
+import { ethers } from 'ethers';
+import fs from 'fs';
+import path from 'path';
+import config from '../config';
+import { ZeroGUploadResult, ZeroGDownloadResult } from '../types';
+
+export class ZeroGStorageService {
+  private provider: ethers.JsonRpcProvider;
+  private signer: ethers.Wallet;
+  private indexer: Indexer;
+
+  constructor() {
+    this.provider = new ethers.JsonRpcProvider(config.zeroG.rpcUrl);
+    this.signer = new ethers.Wallet(config.zeroG.privateKey, this.provider);
+    this.indexer = new Indexer(config.zeroG.indexerRpc);
+  }
+
+  async uploadFile(filePath: string, originalName: string): Promise<ZeroGUploadResult> {
+    let file: ZgFile | null = null;
+    
+    try {
+      console.log(`📤 Starting upload for file: ${originalName}`);
+      
+      // Create ZgFile from file path
+      file = await ZgFile.fromFilePath(filePath);
+      
+      // Generate merkle tree
+      const [tree, treeErr] = await file.merkleTree();
+      if (treeErr !== null) {
+        throw new Error(`Error generating Merkle tree: ${treeErr}`);
+      }
+      
+      if (!tree) {
+        throw new Error('Failed to generate Merkle tree');
+      }
+      
+      const rootHash = tree.rootHash();
+      if (!rootHash) {
+        throw new Error('Failed to get root hash');
+      }
+      
+      console.log(`🌳 Generated root hash: ${rootHash}`);
+      
+      // Upload file using the indexer with proper error handling
+      const [tx, uploadErr] = await this.indexer.upload(
+        file, 
+        config.zeroG.rpcUrl, 
+        this.signer
+      );
+      
+      if (uploadErr !== null) {
+        throw new Error(`Upload error: ${uploadErr}`);
+      }
+      
+      const stats = fs.statSync(filePath);
+      const mimeType = this.getMimeType(originalName);
+      
+      console.log(`✅ Upload successful! Transaction: ${tx}`);
+      
+      return {
+        rootHash,
+        txHash: tx,
+        fileSize: stats.size,
+        fileName: originalName,
+        mimeType,
+        uploadedAt: new Date(),
+      };
+      
+    } catch (error) {
+      console.error('❌ Upload failed:', error);
+      throw new Error(`Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      // Always close the file handle
+      if (file) {
+        try {
+          await file.close();
+        } catch (closeError) {
+          console.warn('⚠️ Failed to close file handle:', closeError);
+        }
+      }
+    }
+  }
+
+  async uploadFromBuffer(
+    buffer: Buffer, 
+    fileName: string, 
+    mimeType: string
+  ): Promise<ZeroGUploadResult> {
+    let tempFilePath: string | null = null;
+    
+    try {
+      // Create temporary file
+      tempFilePath = path.join(config.upload.tempDir, `temp_${Date.now()}_${fileName}`);
+      
+      if (!fs.existsSync(config.upload.tempDir)) {
+        fs.mkdirSync(config.upload.tempDir, { recursive: true });
+      }
+      
+      fs.writeFileSync(tempFilePath, buffer);
+      
+      // Upload the temporary file
+      const result = await this.uploadFile(tempFilePath, fileName);
+      return {
+        ...result,
+        mimeType,
+        fileSize: buffer.length,
+      };
+      
+    } catch (error) {
+      console.error('❌ Buffer upload failed:', error);
+      throw new Error(`Failed to upload buffer: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      // Clean up temporary file
+      if (tempFilePath && fs.existsSync(tempFilePath)) {
+        try {
+          fs.unlinkSync(tempFilePath);
+        } catch (cleanupError) {
+          console.warn('⚠️ Failed to clean up temp file:', cleanupError);
+        }
+      }
+    }
+  }
+
+  async downloadFile(rootHash: string, fileName?: string): Promise<ZeroGDownloadResult> {
+    let tempFilePath: string | null = null;
+    
+    try {
+      console.log(`📥 Starting download for root hash: ${rootHash}`);
+      
+      const tempFileName = fileName || `download_${Date.now()}_${rootHash.slice(0, 8)}`;
+      tempFilePath = path.join(config.upload.tempDir, tempFileName);
+      
+      if (!fs.existsSync(config.upload.tempDir)) {
+        fs.mkdirSync(config.upload.tempDir, { recursive: true });
+      }
+      
+      // Download file using indexer
+      const downloadErr = await this.indexer.download(rootHash, tempFilePath, true);
+      if (downloadErr !== null) {
+        throw new Error(`Download error: ${downloadErr}`);
+      }
+      
+      const data = fs.readFileSync(tempFilePath);
+      const stats = fs.statSync(tempFilePath);
+      
+      console.log(`✅ Download successful for: ${rootHash}`);
+      
+      return {
+        data,
+        fileName: tempFileName,
+        mimeType: this.getMimeType(tempFileName),
+        fileSize: stats.size,
+      };
+      
+    } catch (error) {
+      console.error('❌ Download failed:', error);
+      throw new Error(`Failed to download file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      // Clean up temporary file
+      if (tempFilePath && fs.existsSync(tempFilePath)) {
+        try {
+          fs.unlinkSync(tempFilePath);
+        } catch (cleanupError) {
+          console.warn('⚠️ Failed to clean up temp file:', cleanupError);
+        }
+      }
+    }
+  }
+
+  async checkNetworkStatus(): Promise<{ connected: boolean; nodeCount: number; nodes?: any[] }> {
+    try {
+      const [nodes, err] = await this.indexer.selectNodes(4);
+      if (err !== null) {
+        console.error('Network status check error:', err);
+        return { connected: false, nodeCount: 0 };
+      }
+      
+      // Log node information for debugging
+      if (nodes && nodes.length > 0) {
+        console.log('Selected nodes:', nodes);
+        
+        // Check first node status
+        try {
+          const firstNodeStatus = await nodes[0].getStatus();
+          console.log('First selected node status:', firstNodeStatus);
+        } catch (statusError) {
+          console.warn('Failed to get node status:', statusError);
+        }
+      }
+      
+      return { 
+        connected: true, 
+        nodeCount: nodes?.length || 0,
+        nodes: nodes || []
+      };
+    } catch (error) {
+      console.error('Network status check failed:', error);
+      return { connected: false, nodeCount: 0 };
+    }
+  }
+
+  async getWalletBalance(): Promise<string> {
+    try {
+      const balance = await this.provider.getBalance(this.signer.address);
+      return ethers.formatEther(balance);
+    } catch (error) {
+      console.error('Failed to get wallet balance:', error);
+      return '0';
+    }
+  }
+
+  getWalletAddress(): string {
+    return this.signer.address;
+  }
+
+  private getMimeType(fileName: string): string {
+    const ext = path.extname(fileName).toLowerCase();
+    const mimeTypes: Record<string, string> = {
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp',
+      '.svg': 'image/svg+xml',
+      '.pdf': 'application/pdf',
+      '.txt': 'text/plain',
+      '.json': 'application/json',
+    };
+    
+    return mimeTypes[ext] || 'application/octet-stream';
+  }
+
+  generateFileUrl(rootHash: string, fileName?: string): string {
+    const baseUrl = process.env.API_BASE_URL || `http://localhost:${config.port}`;
+    const fileParam = fileName ? `?filename=${encodeURIComponent(fileName)}` : '';
+    return `${baseUrl}/api/files/${rootHash}${fileParam}`;
+  }
+
+  validateFile(fileName: string, fileSize: number, mimeType: string): void {
+    if (fileSize > config.upload.maxFileSize) {
+      throw new Error(`File size exceeds maximum allowed size of ${config.upload.maxFileSize} bytes`);
+    }
+
+    if (!config.upload.allowedTypes.includes(mimeType)) {
+      throw new Error(`File type ${mimeType} is not allowed. Allowed types: ${config.upload.allowedTypes.join(', ')}`);
+    }
+
+    const ext = path.extname(fileName).toLowerCase();
+    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+    if (!allowedExtensions.includes(ext)) {
+      throw new Error(`File extension ${ext} is not allowed`);
+    }
+  }
+}
+
+export const zeroGStorage = new ZeroGStorageService();
