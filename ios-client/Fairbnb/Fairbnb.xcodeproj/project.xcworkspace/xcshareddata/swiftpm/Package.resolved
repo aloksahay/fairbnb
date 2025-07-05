@@ -1,0 +1,15 @@
+{
+  "originHash" : "3f0e07e96529e07f362cf96cec17094f61e009fb882d6d59a684854eff861392",
+  "pins" : [
+    {
+      "identity" : "mopro-swift-package",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/zkmopro/mopro-swift-package",
+      "state" : {
+        "branch" : "main",
+        "revision" : "f8cc224203d01ed2f6a26ad9b3e6c73537ab09f4"
+      }
+    }
+  ],
+  "version" : 3
+}
