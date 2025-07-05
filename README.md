@@ -9,7 +9,6 @@ fairbnb/
 ├── ios-client/          # iOS mobile application
 │   ├── Fairbnb/         # Xcode project
 │   ├── README.md        # iOS setup guide
-│   └── *.html          # Private key export tools
 ├── backend/             # Node.js API server
 │   ├── config/          # Environment configuration
 │   ├── controllers/     # API request handlers
@@ -93,15 +92,25 @@ open Fairbnb/Fairbnb.xcodeproj
 | `GET` | `/api/files/:rootHash` | Download file |
 | `GET` | `/api/files/:rootHash/info` | Get file info |
 
-## 🔑 **Test Wallet**
+## 🔑 **Test Wallet Setup**
 
-A test wallet has been generated for development:
-```
-Address: 0xe84a2B7E983b83A5dA8f4F9877381FC61D52d04b
-Private Key: 0x0d877bb5b8715a5f4b08fc8fca6da46b95366e1ec3c50f39b8cd238f30afd438
+For development and testing, you'll need to generate a test wallet:
+
+```bash
+cd backend
+node test-wallet.js
 ```
 
-⚠️ **Fund this wallet with 0G testnet tokens**: https://faucet.0g.ai/
+This will generate a new test wallet with:
+- A unique address for receiving testnet tokens
+- A private key to add to your `.env` file
+- Instructions for funding the wallet
+
+⚠️ **Important Security Notes**:
+- Never commit private keys to version control
+- Use the generated wallet only for testnet development
+- Store the private key securely in your local `.env` file
+- Fund your wallet with 0G testnet tokens: https://faucet.0g.ai/
 
 ## 🧪 **Testing**
 
