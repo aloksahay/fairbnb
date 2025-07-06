@@ -7,6 +7,7 @@ import config from './config';
 import fileRoutes from './routes/fileRoutes';
 import imageAnalysisRoutes from './routes/imageAnalysisRoutes';
 import selfVerificationRoutes from './routes/selfVerificationRoutes';
+import selfRoutes from './routes/selfRoutes';
 import { errorHandler, notFound } from './middleware/errorHandler';
 
 const app = express();
@@ -16,7 +17,7 @@ app.use(helmet());
 
 // CORS configuration
 app.use(cors({
-  origin: config.cors.origin,
+  origin: config.nodeEnv === 'development' ? true : config.cors.origin, // Allow all origins in development
   credentials: true,
 }));
 
@@ -56,6 +57,7 @@ app.get('/health', (req, res) => {
 app.use('/api/files', fileRoutes);
 app.use('/api/image-analysis', imageAnalysisRoutes);
 app.use('/api/self-verification', selfVerificationRoutes);
+app.use('/api/self', selfRoutes);
 
 // API documentation endpoint
 app.get('/api', (req, res) => {

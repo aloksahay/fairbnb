@@ -4,9 +4,12 @@ struct SelfVerificationView: View {
     @StateObject private var selfService = SelfVerificationService()
     @StateObject private var privyAuth = PrivyAuthService.shared
     
-    @State private var selectedVerificationType: VerificationType = .guest
+    @State private var selectedVerificationType: VerificationType = .host
     @State private var showingRequirements = false
     @State private var requirements: VerificationRequirements?
+    
+    // Development testing flag
+    @State private var showDevelopmentTools = false
     
     enum VerificationType: String, CaseIterable {
         case guest = "guest"
@@ -36,6 +39,17 @@ struct SelfVerificationView: View {
             case .premium: return .purple
             }
         }
+        
+        var description: String {
+            switch self {
+            case .host:
+                return "Verify identity to become a trusted host"
+            case .guest:
+                return "Verify identity for guest bookings"
+            case .premium:
+                return "Premium verification with additional benefits"
+            }
+        }
     }
     
     var body: some View {
@@ -51,6 +65,41 @@ struct SelfVerificationView: View {
                     } else {
                         authPromptSection
                     }
+                    
+                    // Development Tools Section (Debug builds only)
+                    #if DEBUG
+                    if showDevelopmentTools {
+                        VStack(spacing: 10) {
+                            Text("🔧 Development Tools")
+                                .font(.headline)
+                                .foregroundColor(.orange)
+                            
+                            Button("Test Deeplink Configuration") {
+                                testDeeplinkConfiguration()
+                            }
+                            .buttonStyle(.bordered)
+                            
+                            Button("Simulate Verification Return") {
+                                selfService.handleVerificationReturn()
+                            }
+                            .buttonStyle(.bordered)
+                            
+                            Button("Reset Verification State") {
+                                selfService.resetVerificationState()
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                        .padding()
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(8)
+                    }
+                    
+                    Button(showDevelopmentTools ? "Hide Dev Tools" : "Show Dev Tools") {
+                        showDevelopmentTools.toggle()
+                    }
+                    .font(.caption)
+                    .foregroundColor(.orange)
+                    #endif
                 }
                 .padding()
             }
@@ -208,7 +257,6 @@ struct SelfVerificationView: View {
         Task {
             await selfService.startVerification(
                 userAddress: userAddress,
-                userType: selectedVerificationType.rawValue
             )
         }
     }
@@ -223,7 +271,44 @@ struct SelfVerificationView: View {
     
     private func loadRequirements(for type: VerificationType) {
         Task {
-            requirements = await selfService.getVerificationRequirements(userType: type.rawValue)
+            requirements = await selfService.getVerificationRequirements()
+        }
+    }
+    
+    private func testDeeplinkConfiguration() {
+        // Create a test configuration
+        let testConfig = SelfConfig(
+            appName: "Fairbnb",
+            scope: "verification",
+            endpoint: "https://f4f2-83-144-23-154.ngrok-free.app/api/self-verification/verify",
+            endpointType: "webhook",
+            logoBase64: nil,
+            userId: "test-user-123",
+            userIdType: "wallet",
+            version: 2,
+            devMode: true,
+            userDefinedData: "test-data-123",
+            disclosures: SelfDisclosures(
+                issuing_state: true,
+                name: true,
+                passport_number: true,
+                nationality: true,
+                date_of_birth: true,
+                gender: false,
+                expiry_date: true,
+                minimumAge: 18,
+                excludedCountries: ["US"],
+                ofac: true
+            ),
+            redirectURL: nil
+        )
+        
+        Task {
+            let results = await selfService.testDeeplink(config: testConfig)
+            await MainActor.run {
+                // Handle the results
+                print("Deeplink test results: \(results)")
+            }
         }
     }
 }

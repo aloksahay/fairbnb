@@ -83,6 +83,9 @@ struct LoginView: View {
                 }
                 .padding(.horizontal)
                 
+                // Test Self SDK Button
+                TestSelfSDKButton()
+                
                 Text("New to FairBnB? Sign up during login")
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -382,15 +385,11 @@ struct ProfileMenuView: View {
         }
         
         Task {
-            await selfService.checkVerificationStatus(userAddress: userAddress)
+            // Use the simplified endpoint
+            let verified = await selfService.checkVerificationSimple(walletAddress: userAddress)
             
             await MainActor.run {
-                // Check if user is verified (any verification type counts)
-                if let status = selfService.verificationStatus {
-                    isVerified = status.isVerifiedHost || status.isVerifiedGuest || status.isPremiumUser
-                } else {
-                    isVerified = false
-                }
+                isVerified = verified
             }
         }
     }
@@ -405,10 +404,9 @@ struct ProfileMenuView: View {
         isPresented = false
         
         Task {
-            // Start with guest verification as default
+            // Start verification
             await selfService.startVerification(
-                userAddress: userAddress,
-                userType: "guest"
+                userAddress: userAddress
             )
         }
     }
@@ -661,7 +659,94 @@ struct StatusRow: View {
     }
 }
 
-
+// MARK: - Test Self SDK Button
+struct TestSelfSDKButton: View {
+    @StateObject private var selfService = SelfVerificationService()
+    @State private var isLoading = false
+    @State private var showingAlert = false
+    @State private var alertMessage = ""
+    
+    var body: some View {
+        Button(action: {
+            testSelfSDK()
+        }) {
+            HStack {
+                if isLoading {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                        .foregroundColor(.white)
+                } else {
+                    Image(systemName: "shield.checkered")
+                }
+                Text(isLoading ? "Testing Self SDK..." : "Test Self SDK")
+            }
+            .font(.subheadline)
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color.purple)
+            .cornerRadius(12)
+        }
+        .disabled(isLoading)
+        .padding(.horizontal)
+        .alert("Self SDK Test", isPresented: $showingAlert) {
+            Button("OK") { }
+        } message: {
+            Text(alertMessage)
+        }
+    }
+    
+    private func testSelfSDK() {
+        isLoading = true
+        
+        // Generate a random test wallet address
+        let testWalletAddress = generateRandomWalletAddress()
+        
+        print("🧪 Testing Self SDK with random wallet address: \(testWalletAddress)")
+        
+        Task {
+            do {
+                // Test the Self SDK verification flow
+                await selfService.startVerification(
+                    userAddress: testWalletAddress
+                )
+                
+                await MainActor.run {
+                    isLoading = false
+                    
+                    if let error = selfService.errorMessage {
+                        alertMessage = "Test failed: \(error)"
+                        showingAlert = true
+                    } else {
+                        alertMessage = "Self SDK test completed! Check console for deeplink details.\n\nTest wallet: \(testWalletAddress)"
+                        showingAlert = true
+                    }
+                }
+                
+            } catch {
+                await MainActor.run {
+                    isLoading = false
+                    alertMessage = "Test error: \(error.localizedDescription)"
+                    showingAlert = true
+                }
+            }
+        }
+    }
+    
+    private func generateRandomWalletAddress() -> String {
+        // Generate a random Ethereum-style address (0x + 40 hex characters)
+        let hexChars = "0123456789abcdef"
+        var address = "0x"
+        
+        for _ in 0..<40 {
+            let randomIndex = Int.random(in: 0..<hexChars.count)
+            let char = hexChars[hexChars.index(hexChars.startIndex, offsetBy: randomIndex)]
+            address.append(char)
+        }
+        
+        return address
+    }
+}
 
 #Preview {
     ContentView()

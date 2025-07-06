@@ -28,6 +28,8 @@
   "dependencies": {
     "@0glabs/0g-serving-broker": "^0.2.13",
     "@0glabs/0g-ts-sdk": "^0.2.1",
+    "@selfxyz/core": "^1.0.5-beta.1",
+    "@selfxyz/qrcode": "^1.0.10-beta.1",
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",

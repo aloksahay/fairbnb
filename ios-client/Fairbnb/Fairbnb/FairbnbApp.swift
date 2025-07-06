@@ -23,18 +23,16 @@ struct FairbnbApp: App {
     
     private func handleIncomingURL(_ url: URL) {
         // Handle returning from Self verification
-        if url.scheme == "fairbnb" && url.host == "self-verification" {
+        // Self app returns to the app using the configured URL scheme
+        if url.scheme == "fairbnb" {
             // Extract verification result from URL
             let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems
             
-            if let success = queryItems?.first(where: { $0.name == "success" })?.value,
-               success == "true" {
-                // Verification successful, check status
-                selfVerificationService.handleVerificationReturn()
-            } else {
-                // Verification failed or cancelled
-                selfVerificationService.handleVerificationReturn()
-            }
+            // Self may return different parameters, so we handle the return generically
+            print("Returned from Self app with URL: \(url)")
+            
+            // Always check verification status when returning from Self
+            selfVerificationService.handleVerificationReturn()
         }
     }
 }
