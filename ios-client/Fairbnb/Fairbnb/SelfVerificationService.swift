@@ -6,10 +6,12 @@ struct SelfConfig: Codable {
     let appName: String
     let scope: String
     let endpoint: String
+    let endpointType: String?
     let logoBase64: String?
     let userId: String
     let userIdType: String
     let version: Int
+    let devMode: Bool?
     let userDefinedData: String
     let disclosures: SelfDisclosures
 }
@@ -131,39 +133,21 @@ class SelfVerificationService: ObservableObject {
     
     /// Generate Self deeplink based on configuration
     private func generateSelfDeeplink(config: SelfConfig) -> String {
-        // Based on Self's deeplinking documentation
-        // This generates a universal link that opens the Self mobile app
+        // Based on Self's V2 deeplinking documentation
+        // This generates a deeplink that opens the Self mobile app
         
-        let baseURL = "https://app.self.xyz/verify"
+        // Use the Self app custom scheme
+        let baseURL = "self://verify"
         
         var components = URLComponents(string: baseURL)!
-        components.queryItems = [
-            URLQueryItem(name: "appName", value: config.appName),
-            URLQueryItem(name: "scope", value: config.scope),
-            URLQueryItem(name: "endpoint", value: config.endpoint),
-            URLQueryItem(name: "userId", value: config.userId),
-            URLQueryItem(name: "userIdType", value: config.userIdType),
-            URLQueryItem(name: "version", value: String(config.version)),
-            URLQueryItem(name: "userDefinedData", value: config.userDefinedData),
-            
-            // Disclosures
-            URLQueryItem(name: "minimumAge", value: config.disclosures.minimumAge.map(String.init)),
-            URLQueryItem(name: "ofac", value: config.disclosures.ofac.map(String.init)),
-            URLQueryItem(name: "name", value: config.disclosures.name.map(String.init)),
-            URLQueryItem(name: "nationality", value: config.disclosures.nationality.map(String.init)),
-            URLQueryItem(name: "date_of_birth", value: config.disclosures.date_of_birth.map(String.init)),
-            URLQueryItem(name: "issuing_state", value: config.disclosures.issuing_state.map(String.init)),
-            URLQueryItem(name: "passport_number", value: config.disclosures.passport_number.map(String.init)),
-            URLQueryItem(name: "gender", value: config.disclosures.gender.map(String.init)),
-            URLQueryItem(name: "expiry_date", value: config.disclosures.expiry_date.map(String.init))
-        ]
         
-        // Add excluded countries if any
-        if let excludedCountries = config.disclosures.excludedCountries {
-            components.queryItems?.append(
-                URLQueryItem(name: "excludedCountries", value: excludedCountries.joined(separator: ","))
-            )
-        }
+        // Create the configuration JSON
+        let configData = try? JSONEncoder().encode(config)
+        let configString = configData?.base64EncodedString() ?? ""
+        
+        components.queryItems = [
+            URLQueryItem(name: "config", value: configString)
+        ]
         
         return components.url?.absoluteString ?? baseURL
     }

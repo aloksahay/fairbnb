@@ -6,10 +6,10 @@ const path = require('path');
 // Configuration
 const RPC_URL = 'https://evmrpc-testnet.0g.ai/';
 const INDEXER_RPC = 'https://indexer-storage-testnet-turbo.0g.ai';
-const PRIVATE_KEY = process.env.ZEROG_PRIVATE_KEY || '';
+const PRIVATE_KEY = process.env.PRIVATE_KEY || '';
 
 if (!PRIVATE_KEY) {
-  console.error('❌ Please set ZEROG_PRIVATE_KEY environment variable');
+  console.error('❌ Please set PRIVATE_KEY environment variable');
   process.exit(1);
 }
 

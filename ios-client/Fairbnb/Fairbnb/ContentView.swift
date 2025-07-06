@@ -11,7 +11,6 @@ struct ContentView: View {
     @StateObject private var authService = PrivyAuthService.shared
     @State private var showingLoginSheet = false
     @State private var showingWalletSheet = false
-    @State private var showingPrivateKeyExport = false
     
     var body: some View {
         Group {
@@ -26,27 +25,6 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingWalletSheet) {
             WalletView(authService: authService)
-        }
-        .sheet(isPresented: $showingPrivateKeyExport) {
-            NavigationView {
-                PrivateKeyExportWebView(
-                    appId: "cmcq8l3l2037bju0mf1dc0oou",
-                    userEmail: authService.currentUser?.email ?? "no-email@example.com",
-                    isPresented: $showingPrivateKeyExport
-                )
-                .navigationTitle("Export Private Key")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button("Done") {
-                            showingPrivateKeyExport = false
-                        }
-                    }
-                }
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .openPrivateKeyExport)) { _ in
-            showingPrivateKeyExport = true
         }
     }
 }
@@ -160,22 +138,17 @@ struct ListingsView: View {
                     Text("Your Listings")
                         .font(.title2)
                         .fontWeight(.bold)
-                        .padding(.horizontal)
                     
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 16) {
-                            // Add Listing Button
-                            AddListingCard()
-                        }
-                        .padding(.horizontal)
-                    }
+                    // Add Listing Button
+                    AddListingCard()
                 }
                 .padding(.top)
+                .padding(.horizontal)
                 
                 Spacer()
             }
             .navigationTitle("Listings")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(NavigationBarItem.TitleDisplayMode.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: {
@@ -257,7 +230,8 @@ struct AddListingCard: View {
                 .fontWeight(.medium)
                 .foregroundColor(.primary)
         }
-        .frame(width: 200, height: 200)
+        .frame(maxWidth: .infinity)
+        .frame(height: 120)
         .background(Color.blue.opacity(0.1))
         .cornerRadius(16)
         .overlay(
@@ -271,6 +245,8 @@ struct AddListingCard: View {
 struct ProfileMenuView: View {
     @ObservedObject var authService: PrivyAuthService
     @Binding var isPresented: Bool
+    @StateObject private var selfService = SelfVerificationService()
+    @State private var isVerified: Bool? = nil
     
     var body: some View {
         NavigationView {
@@ -280,18 +256,6 @@ struct ProfileMenuView: View {
                     Image(systemName: "person.circle.fill")
                         .font(.system(size: 80))
                         .foregroundColor(.blue)
-                    
-                    VStack(spacing: 8) {
-                        Text("Profile")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                        
-                        if let user = authService.currentUser {
-                            Text(user.email)
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                    }
                 }
                 .padding()
                 
@@ -300,14 +264,85 @@ struct ProfileMenuView: View {
                     ProfileInfoRow(label: "Email", value: authService.currentUser?.email ?? "Not available")
                     
                     if let wallet = authService.userWallet {
-                        ProfileInfoRow(label: "Wallet Address", value: wallet.displayAddress)
+                        ProfileInfoRow(label: "Wallet Address", value: wallet.address)
                     } else {
                         ProfileInfoRow(label: "Wallet Address", value: "Loading...")
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
                 .background(Color(.systemGray6))
                 .cornerRadius(12)
+                
+                // Verification Status
+                if let verified = isVerified {
+                    if verified {
+                        // Verified status (green)
+                        HStack {
+                            Image(systemName: "checkmark.shield.fill")
+                                .foregroundColor(.green)
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Verified Profile")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.green)
+                                
+                                Text("Your identity has been verified")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Spacer()
+                        }
+                        .padding()
+                        .background(Color.green.opacity(0.1))
+                        .cornerRadius(12)
+                    } else {
+                        // Unverified status (red button)
+                        Button(action: {
+                            startVerification()
+                        }) {
+                            HStack {
+                                Image(systemName: "exclamationmark.shield.fill")
+                                    .foregroundColor(.red)
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Unverified Profile")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(.red)
+                                    
+                                    Text("Tap here to verify")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                
+                                Spacer()
+                                
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding()
+                            .background(Color.red.opacity(0.1))
+                            .cornerRadius(12)
+                        }
+                    }
+                } else {
+                    // Loading verification status
+                    HStack {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                        
+                        Text("Checking verification status...")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(12)
+                }
                 
                 Spacer()
                 
@@ -324,7 +359,7 @@ struct ProfileMenuView: View {
             }
             .padding()
             .navigationTitle("Profile")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(NavigationBarItem.TitleDisplayMode.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
@@ -332,6 +367,49 @@ struct ProfileMenuView: View {
                     }
                 }
             }
+            .onAppear {
+                checkVerificationStatus()
+            }
+        }
+    }
+    
+    // MARK: - Verification Methods
+    
+    private func checkVerificationStatus() {
+        guard let userAddress = authService.currentUser?.walletAddress else {
+            isVerified = false
+            return
+        }
+        
+        Task {
+            await selfService.checkVerificationStatus(userAddress: userAddress)
+            
+            await MainActor.run {
+                // Check if user is verified (any verification type counts)
+                if let status = selfService.verificationStatus {
+                    isVerified = status.isVerifiedHost || status.isVerifiedGuest || status.isPremiumUser
+                } else {
+                    isVerified = false
+                }
+            }
+        }
+    }
+    
+    private func startVerification() {
+        guard let userAddress = authService.currentUser?.walletAddress else {
+            selfService.errorMessage = "No wallet address found. Please ensure your wallet is connected."
+            return
+        }
+        
+        // Close profile menu and start verification
+        isPresented = false
+        
+        Task {
+            // Start with guest verification as default
+            await selfService.startVerification(
+                userAddress: userAddress,
+                userType: "guest"
+            )
         }
     }
 }
@@ -352,6 +430,8 @@ struct ProfileInfoRow: View {
                 .font(.subheadline)
                 .fontWeight(.medium)
                 .foregroundColor(.primary)
+                .lineLimit(nil)
+                .multilineTextAlignment(.leading)
         }
     }
 }
@@ -413,43 +493,6 @@ struct WalletCard: View {
                         .padding()
                         .background(Color.green)
                         .cornerRadius(12)
-                    }
-                    
-                    // Debug: Export Private Key Options (for development only)
-                    HStack(spacing: 8) {
-                        // Mock Private Key Export
-                        Button(action: {
-                            print("Mock private key export - feature coming soon")
-                        }) {
-                            VStack(spacing: 4) {
-                                Image(systemName: "key.fill")
-                                Text("Mock Key")
-                                    .font(.caption2)
-                            }
-                            .font(.caption)
-                            .foregroundColor(.orange)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
-                            .background(Color.orange.opacity(0.1))
-                            .cornerRadius(8)
-                        }
-                        
-                        // Real Private Key Export via WebView
-                        Button(action: {
-                            print("Real private key export - feature coming soon")
-                        }) {
-                            VStack(spacing: 4) {
-                                Image(systemName: "globe")
-                                Text("Real Key")
-                                    .font(.caption2)
-                            }
-                            .font(.caption)
-                            .foregroundColor(.blue)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
-                            .background(Color.blue.opacity(0.1))
-                            .cornerRadius(8)
-                        }
                     }
                 }
                 

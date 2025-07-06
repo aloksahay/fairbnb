@@ -9,11 +9,23 @@ export class ZeroGStorageService {
   private provider: ethers.JsonRpcProvider;
   private signer: ethers.Wallet;
   private indexer: Indexer;
+  private rpcUrl: string;
+  private indexerRpc: string;
+  private privateKey: string;
 
   constructor() {
-    this.provider = new ethers.JsonRpcProvider(config.zeroG.rpcUrl);
-    this.signer = new ethers.Wallet(config.zeroG.privateKey, this.provider);
-    this.indexer = new Indexer(config.zeroG.indexerRpc);
+    this.rpcUrl = process.env.ZEROG_RPC_URL || 'https://evmrpc-testnet.0g.ai/';
+    this.indexerRpc = process.env.ZEROG_INDEXER_RPC || 'https://indexer-storage-testnet-turbo.0g.ai';
+    
+    const privateKey = process.env.PRIVATE_KEY;
+    if (!privateKey) {
+      throw new Error('PRIVATE_KEY environment variable is required');
+    }
+    this.privateKey = privateKey;
+
+    this.provider = new ethers.JsonRpcProvider(this.rpcUrl);
+    this.signer = new ethers.Wallet(this.privateKey, this.provider);
+    this.indexer = new Indexer(this.indexerRpc);
   }
 
   async uploadFile(filePath: string, originalName: string): Promise<ZeroGUploadResult> {
@@ -45,7 +57,7 @@ export class ZeroGStorageService {
       // Upload file using the indexer with proper error handling
       const [tx, uploadErr] = await this.indexer.upload(
         file, 
-        config.zeroG.rpcUrl, 
+        this.rpcUrl, 
         this.signer
       );
       
