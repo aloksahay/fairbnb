@@ -1,14 +1,15 @@
+import { Request } from 'express';
 export interface ApiResponse<T = any> {
     success: boolean;
     data?: T;
-    message?: string;
     error?: string;
+    message?: string;
 }
 export interface ZeroGUploadResult {
     rootHash: string;
     txHash: string;
-    fileSize: number;
     fileName: string;
+    fileSize: number;
     mimeType: string;
     uploadedAt: Date;
 }
@@ -100,5 +101,21 @@ export interface JwtPayload {
 export interface AppError extends Error {
     statusCode: number;
     isOperational: boolean;
+}
+export interface MulterRequest extends Request {
+    file?: Express.Multer.File;
+}
+export interface MulterMultipleRequest extends Request {
+    files?: Express.Multer.File[];
+}
+export interface NetworkStatus {
+    connected: boolean;
+    nodeCount: number;
+    nodes?: any[];
+}
+export interface WalletInfo {
+    address: string;
+    balance: string;
+    balanceETH: string;
 }
 //# sourceMappingURL=index.d.ts.map

@@ -12,6 +12,16 @@ interface Config {
     indexerRpc: string;
     privateKey: string;
   };
+  zeroGCompute: {
+    fallbackFee: number;
+  };
+  celo: {
+    rpcUrl: string;
+    chainId: number;
+  };
+  selfVerification: {
+    contractAddress: string;
+  };
   jwt: {
     secret: string;
     expiresIn: string;
@@ -40,7 +50,17 @@ const config: Config = {
   zeroG: {
     rpcUrl: process.env.ZEROG_RPC_URL || 'https://evmrpc-testnet.0g.ai/',
     indexerRpc: process.env.ZEROG_INDEXER_RPC || 'https://indexer-storage-testnet-turbo.0g.ai',
-    privateKey: process.env.ZEROG_PRIVATE_KEY || '',
+    privateKey: process.env.PRIVATE_KEY || '',
+  },
+  zeroGCompute: {
+    fallbackFee: parseFloat(process.env.ZEROG_FALLBACK_FEE || '0.01'),
+  },
+  celo: {
+    rpcUrl: process.env.CELO_RPC_URL || 'https://alfajores-forno.celo-testnet.org',
+    chainId: parseInt(process.env.CELO_CHAIN_ID || '44787', 10),
+  },
+  selfVerification: {
+    contractAddress: process.env.SELF_VERIFICATION_CONTRACT_ADDRESS || '0xD5e23f89C260c9893c02bfb48D34232e54347970',
   },
   jwt: {
     secret: process.env.JWT_SECRET || 'fallback-secret-key',
@@ -71,7 +91,7 @@ const config: Config = {
 
 // Validate required environment variables
 const requiredEnvVars = [
-  'ZEROG_PRIVATE_KEY',
+  'PRIVATE_KEY',
   'JWT_SECRET',
   'ENCRYPTION_KEY',
 ];

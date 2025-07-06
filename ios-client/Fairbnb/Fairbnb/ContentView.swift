@@ -8,15 +8,14 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var authService = PrivyAuthService()
+    @StateObject private var authService = PrivyAuthService.shared
     @State private var showingLoginSheet = false
     @State private var showingWalletSheet = false
-    @State private var showingPrivateKeyExport = false
     
     var body: some View {
         Group {
             if authService.isAuthenticated {
-                DashboardView(authService: authService, showingWalletSheet: $showingWalletSheet)
+                MainAppView(authService: authService, showingWalletSheet: $showingWalletSheet)
             } else {
                 LoginView(authService: authService, showingLoginSheet: $showingLoginSheet)
             }
@@ -26,27 +25,6 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingWalletSheet) {
             WalletView(authService: authService)
-        }
-        .sheet(isPresented: $showingPrivateKeyExport) {
-            NavigationView {
-                PrivateKeyExportWebView(
-                    appId: "cmcq8l3l2037bju0mf1dc0oou",
-                    userEmail: authService.currentUser?.email ?? "user@example.com",
-                    isPresented: $showingPrivateKeyExport
-                )
-                .navigationTitle("Export Private Key")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button("Done") {
-                            showingPrivateKeyExport = false
-                        }
-                    }
-                }
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .openPrivateKeyExport)) { _ in
-            showingPrivateKeyExport = true
         }
     }
 }
@@ -78,14 +56,6 @@ struct LoginView: View {
                         .multilineTextAlignment(.center)
                 }
                 
-                // Features
-                VStack(spacing: 16) {
-                    FeatureRow(icon: "shield.checkered", title: "Zero-Knowledge Privacy", description: "Your exact location stays private")
-                    FeatureRow(icon: "wallet.pass", title: "Embedded Wallet", description: "Secure crypto payments built-in")
-                    FeatureRow(icon: "lock.shield", title: "Self-Custodial", description: "You control your keys and funds")
-                }
-                .padding(.horizontal)
-                
                 Spacer()
                 
                 // Login Button
@@ -104,10 +74,6 @@ struct LoginView: View {
                     .cornerRadius(12)
                 }
                 .padding(.horizontal)
-                
-                Text("New to FairBnB? Sign up during login")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
                 
                 Spacer()
             }
@@ -144,75 +110,241 @@ struct FeatureRow: View {
     }
 }
 
-// MARK: - Dashboard View
-struct DashboardView: View {
+
+
+// MARK: - Main App View
+struct MainAppView: View {
     @ObservedObject var authService: PrivyAuthService
     @Binding var showingWalletSheet: Bool
+    @State private var showingProfileMenu = false
+    @State private var showingCreateListing = false
     
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Welcome Header
-                    VStack(spacing: 16) {
+            ListingsView()
+                .navigationTitle("FairBnB")
+                .navigationBarTitleDisplayMode(.large)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button(action: {
+                            showingProfileMenu = true
+                        }) {
+                            Image(systemName: "person.circle.fill")
+                                .font(.title2)
+                                .foregroundColor(.primary)
+                        }
+                    }
+                    
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(action: {
+                            showingCreateListing = true
+                        }) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.title2)
+                                .foregroundColor(.primary)
+                        }
+                    }
+                }
+                .sheet(isPresented: $showingProfileMenu) {
+                    ProfileMenuView(authService: authService, isPresented: $showingProfileMenu)
+                }
+                .sheet(isPresented: $showingCreateListing) {
+                    CreateListingView()
+                }
+        }
+    }
+}
+
+
+
+// MARK: - Profile Menu View
+struct ProfileMenuView: View {
+    @ObservedObject var authService: PrivyAuthService
+    @Binding var isPresented: Bool
+    @StateObject private var selfService = SelfVerificationService()
+    @State private var isVerified: Bool? = nil
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 24) {
+                // Profile Header
+                VStack(spacing: 16) {
+                    Image(systemName: "person.circle.fill")
+                        .font(.system(size: 80))
+                        .foregroundColor(.blue)
+                }
+                .padding()
+                
+                // Profile Information
+                VStack(alignment: .leading, spacing: 16) {
+                    ProfileInfoRow(label: "Email", value: authService.currentUser?.email ?? "Not available")
+                    
+                    if let wallet = authService.userWallet {
+                        ProfileInfoRow(label: "Wallet Address", value: wallet.address)
+                    } else {
+                        ProfileInfoRow(label: "Wallet Address", value: "Loading...")
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding()
+                .background(Color(.systemGray6))
+                .cornerRadius(12)
+                
+                // Verification Status
+                if let verified = isVerified {
+                    if verified {
+                        // Verified status (green)
                         HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Welcome back!")
-                                    .font(.title2)
-                                    .foregroundColor(.secondary)
+                            Image(systemName: "checkmark.shield.fill")
+                                .foregroundColor(.green)
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Verified Profile")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.green)
                                 
-                                if let user = authService.currentUser {
-                                    Text(user.email)
-                                        .font(.headline)
-                                        .fontWeight(.medium)
-                                } else {
-                                    Text("FairBnB User")
-                                        .font(.headline)
-                                        .fontWeight(.medium)
-                                }
+                                Text("Your identity has been verified")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
                             }
                             
                             Spacer()
-                            
-                            // Profile Avatar
-                            Button(action: {
-                                // Profile action
-                            }) {
-                                Image(systemName: "person.circle.fill")
-                                    .font(.system(size: 40))
-                                    .foregroundColor(.blue)
-                            }
                         }
+                        .padding()
+                        .background(Color.green.opacity(0.1))
+                        .cornerRadius(12)
+                    } else {
+                        // Unverified status (red button)
+                        Button(action: {
+                            startVerification()
+                        }) {
+                            HStack {
+                                Image(systemName: "exclamationmark.shield.fill")
+                                    .foregroundColor(.red)
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Unverified Profile")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(.red)
+                                    
+                                    Text("Tap here to verify")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                
+                                Spacer()
+                                
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding()
+                            .background(Color.red.opacity(0.1))
+                            .cornerRadius(12)
+                        }
+                    }
+                } else {
+                    // Loading verification status
+                    HStack {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                        
+                        Text("Checking verification status...")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
                     .padding()
-                    .background(Color.blue.opacity(0.1))
-                    .cornerRadius(16)
-                    
-                    // Wallet Card
-                    WalletCard(authService: authService, showingWalletSheet: $showingWalletSheet)
-                    
-                    // Quick Actions
-                    QuickActionsCard()
-                    
-                    // App Status
-                    AppStatusCard()
-                    
-                    Spacer(minLength: 50)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(12)
                 }
+                
+                Spacer()
+                
+                // Sign Out Button
+                Button("Sign Out") {
+                    Task {
+                        await authService.signOut()
+                        isPresented = false
+                    }
+                }
+                .foregroundColor(.red)
+                .font(.headline)
                 .padding()
             }
-            .navigationTitle("Dashboard")
-            .navigationBarTitleDisplayMode(.inline)
+            .padding()
+            .navigationTitle("Profile")
+            .navigationBarTitleDisplayMode(NavigationBarItem.TitleDisplayMode.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Sign Out") {
-                        Task {
-                            await authService.signOut()
-                        }
+                    Button("Done") {
+                        isPresented = false
                     }
-                    .foregroundColor(.red)
                 }
             }
+            .onAppear {
+                checkVerificationStatus()
+            }
+        }
+    }
+    
+    // MARK: - Verification Methods
+    
+    private func checkVerificationStatus() {
+        guard let userAddress = authService.currentUser?.walletAddress else {
+            isVerified = false
+            return
+        }
+        
+        Task {
+            // Use the simplified endpoint
+            let verified = await selfService.checkVerificationSimple(walletAddress: userAddress)
+            
+            await MainActor.run {
+                isVerified = verified
+            }
+        }
+    }
+    
+    private func startVerification() {
+        guard let userAddress = authService.currentUser?.walletAddress else {
+            selfService.errorMessage = "No wallet address found. Please ensure your wallet is connected."
+            return
+        }
+        
+        // Close profile menu and start verification
+        isPresented = false
+        
+        print("🧪 Starting Self SDK verification with user wallet address: \(userAddress)")
+        
+        Task {
+            // Start verification with the actual user's wallet address
+            await selfService.startVerification(
+                userAddress: userAddress
+            )
+        }
+    }
+}
+
+// MARK: - Profile Info Row
+struct ProfileInfoRow: View {
+    let label: String
+    let value: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .textCase(.uppercase)
+            
+            Text(value)
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundColor(.primary)
+                .lineLimit(nil)
+                .multilineTextAlignment(.leading)
         }
     }
 }
@@ -274,45 +406,6 @@ struct WalletCard: View {
                         .padding()
                         .background(Color.green)
                         .cornerRadius(12)
-                    }
-                    
-                    // Debug: Export Private Key Options (for development only)
-                    HStack(spacing: 8) {
-                        // Mock Private Key Export
-                        Button(action: {
-                            Task {
-                                await authService.exportPrivateKey()
-                            }
-                        }) {
-                            VStack(spacing: 4) {
-                                Image(systemName: "key.fill")
-                                Text("Mock Key")
-                                    .font(.caption2)
-                            }
-                            .font(.caption)
-                            .foregroundColor(.orange)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
-                            .background(Color.orange.opacity(0.1))
-                            .cornerRadius(8)
-                        }
-                        
-                        // Real Private Key Export via WebView
-                        Button(action: {
-                            authService.openPrivateKeyExportWebView()
-                        }) {
-                            VStack(spacing: 4) {
-                                Image(systemName: "globe")
-                                Text("Real Key")
-                                    .font(.caption2)
-                            }
-                            .font(.caption)
-                            .foregroundColor(.blue)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
-                            .background(Color.blue.opacity(0.1))
-                            .cornerRadius(8)
-                        }
                     }
                 }
                 
@@ -480,6 +573,8 @@ struct StatusRow: View {
         }
     }
 }
+
+
 
 #Preview {
     ContentView()

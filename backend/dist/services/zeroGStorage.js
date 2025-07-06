@@ -11,101 +11,204 @@ const path_1 = __importDefault(require("path"));
 const config_1 = __importDefault(require("../config"));
 class ZeroGStorageService {
     constructor() {
-        this.provider = new ethers_1.ethers.JsonRpcProvider(config_1.default.zeroG.rpcUrl);
-        this.signer = new ethers_1.ethers.Wallet(config_1.default.zeroG.privateKey, this.provider);
-        this.indexer = new _0g_ts_sdk_1.Indexer(config_1.default.zeroG.indexerRpc);
+        this.rpcUrl = process.env.ZEROG_RPC_URL || 'https://evmrpc-testnet.0g.ai/';
+        this.indexerRpc = process.env.ZEROG_INDEXER_RPC || 'https://indexer-storage-testnet-turbo.0g.ai';
+        this.uploadTimeout = parseInt(process.env.ZEROG_UPLOAD_TIMEOUT || '90000');
+        this.maxRetries = parseInt(process.env.ZEROG_MAX_RETRIES || '3');
+        const privateKey = process.env.PRIVATE_KEY;
+        if (!privateKey) {
+            throw new Error('PRIVATE_KEY environment variable is required');
+        }
+        this.privateKey = privateKey;
+        this.provider = new ethers_1.ethers.JsonRpcProvider(this.rpcUrl);
+        this.signer = new ethers_1.ethers.Wallet(this.privateKey, this.provider);
+        this.indexer = new _0g_ts_sdk_1.Indexer(this.indexerRpc);
     }
     async uploadFile(filePath, originalName) {
-        try {
-            console.log(`📤 Starting upload for file: ${originalName}`);
-            const file = await _0g_ts_sdk_1.ZgFile.fromFilePath(filePath);
-            const [tree, treeErr] = await file.merkleTree();
-            if (treeErr !== null) {
-                throw new Error(`Error generating Merkle tree: ${treeErr}`);
+        let file = null;
+        let attempt = 0;
+        while (attempt < this.maxRetries) {
+            try {
+                console.log(`📤 Starting upload attempt ${attempt + 1}/${this.maxRetries} for file: ${originalName}`);
+                file = await _0g_ts_sdk_1.ZgFile.fromFilePath(filePath);
+                const [tree, treeErr] = await file.merkleTree();
+                if (treeErr !== null) {
+                    throw new Error(`Error generating Merkle tree: ${treeErr}`);
+                }
+                if (!tree) {
+                    throw new Error('Failed to generate Merkle tree');
+                }
+                const rootHash = tree.rootHash();
+                if (!rootHash) {
+                    throw new Error('Failed to get root hash');
+                }
+                console.log(`🌳 Generated root hash: ${rootHash}`);
+                const uploadPromise = this.indexer.upload(file, this.rpcUrl, this.signer);
+                const timeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error('Upload timeout')), this.uploadTimeout);
+                });
+                const [tx, uploadErr] = await Promise.race([uploadPromise, timeoutPromise]);
+                if (uploadErr !== null) {
+                    throw new Error(`Upload error: ${uploadErr}`);
+                }
+                const stats = fs_1.default.statSync(filePath);
+                const mimeType = this.getMimeType(originalName);
+                console.log(`✅ Upload successful! Transaction: ${tx}`);
+                return {
+                    rootHash,
+                    txHash: tx,
+                    fileSize: stats.size,
+                    fileName: originalName,
+                    mimeType,
+                    uploadedAt: new Date(),
+                };
             }
-            if (!tree) {
-                throw new Error('Failed to generate Merkle tree');
+            catch (error) {
+                console.error(`❌ Upload attempt ${attempt + 1} failed:`, error);
+                if (attempt === this.maxRetries - 1) {
+                    throw new Error(`Failed to upload file after ${this.maxRetries} attempts: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                }
+                const waitTime = Math.pow(2, attempt) * 5000;
+                console.log(`⏳ Waiting ${waitTime}ms before retry...`);
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+                attempt++;
             }
-            const rootHash = tree.rootHash();
-            if (!rootHash) {
-                throw new Error('Failed to get root hash');
+            finally {
+                if (file) {
+                    try {
+                        await file.close();
+                    }
+                    catch (closeError) {
+                        console.warn('⚠️ Failed to close file handle:', closeError);
+                    }
+                    file = null;
+                }
             }
-            console.log(`🌳 Generated root hash: ${rootHash}`);
-            const [tx, uploadErr] = await this.indexer.upload(file, config_1.default.zeroG.rpcUrl, this.signer);
-            if (uploadErr !== null) {
-                throw new Error(`Upload error: ${uploadErr}`);
-            }
-            const stats = fs_1.default.statSync(filePath);
-            const mimeType = this.getMimeType(originalName);
-            console.log(`✅ Upload successful! Transaction: ${tx}`);
-            await file.close();
-            return {
-                rootHash,
-                txHash: tx,
-                fileSize: stats.size,
-                fileName: originalName,
-                mimeType,
-                uploadedAt: new Date(),
-            };
         }
-        catch (error) {
-            console.error('❌ Upload failed:', error);
-            throw new Error(`Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
+        throw new Error('Upload failed after all retry attempts');
     }
     async uploadFromBuffer(buffer, fileName, mimeType) {
+        let tempFilePath = null;
         try {
-            const tempFilePath = path_1.default.join(config_1.default.upload.tempDir, `temp_${Date.now()}_${fileName}`);
+            tempFilePath = path_1.default.join(config_1.default.upload.tempDir, `temp_${Date.now()}_${fileName}`);
             if (!fs_1.default.existsSync(config_1.default.upload.tempDir)) {
                 fs_1.default.mkdirSync(config_1.default.upload.tempDir, { recursive: true });
             }
             fs_1.default.writeFileSync(tempFilePath, buffer);
-            try {
-                const result = await this.uploadFile(tempFilePath, fileName);
-                return {
-                    ...result,
-                    mimeType,
-                    fileSize: buffer.length,
-                };
-            }
-            finally {
-                if (fs_1.default.existsSync(tempFilePath)) {
-                    fs_1.default.unlinkSync(tempFilePath);
-                }
-            }
+            const result = await this.uploadFile(tempFilePath, fileName);
+            return {
+                ...result,
+                mimeType,
+                fileSize: buffer.length,
+            };
         }
         catch (error) {
             console.error('❌ Buffer upload failed:', error);
             throw new Error(`Failed to upload buffer: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
+        finally {
+            if (tempFilePath && fs_1.default.existsSync(tempFilePath)) {
+                try {
+                    fs_1.default.unlinkSync(tempFilePath);
+                }
+                catch (cleanupError) {
+                    console.warn('⚠️ Failed to clean up temp file:', cleanupError);
+                }
+            }
+        }
     }
     async downloadFile(rootHash, fileName) {
+        let tempFilePath = null;
+        let attempt = 0;
+        while (attempt < this.maxRetries) {
+            try {
+                console.log(`📥 Starting download attempt ${attempt + 1}/${this.maxRetries} for root hash: ${rootHash}`);
+                const tempFileName = fileName || `download_${Date.now()}_${rootHash.slice(0, 8)}`;
+                tempFilePath = path_1.default.join(config_1.default.upload.tempDir, tempFileName);
+                if (!fs_1.default.existsSync(config_1.default.upload.tempDir)) {
+                    fs_1.default.mkdirSync(config_1.default.upload.tempDir, { recursive: true });
+                }
+                const downloadPromise = this.indexer.download(rootHash, tempFilePath, true);
+                const timeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error('Download timeout')), this.uploadTimeout);
+                });
+                const downloadErr = await Promise.race([downloadPromise, timeoutPromise]);
+                if (downloadErr !== null) {
+                    throw new Error(`Download error: ${downloadErr}`);
+                }
+                const data = fs_1.default.readFileSync(tempFilePath);
+                const stats = fs_1.default.statSync(tempFilePath);
+                console.log(`✅ Download successful for: ${rootHash}`);
+                return {
+                    data,
+                    fileName: tempFileName,
+                    mimeType: this.getMimeType(tempFileName),
+                    fileSize: stats.size,
+                };
+            }
+            catch (error) {
+                console.error(`❌ Download attempt ${attempt + 1} failed:`, error);
+                if (attempt === this.maxRetries - 1) {
+                    throw new Error(`Failed to download file after ${this.maxRetries} attempts: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                }
+                const waitTime = Math.pow(2, attempt) * 3000;
+                console.log(`⏳ Waiting ${waitTime}ms before retry...`);
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+                attempt++;
+            }
+            finally {
+                if (tempFilePath && fs_1.default.existsSync(tempFilePath)) {
+                    try {
+                        fs_1.default.unlinkSync(tempFilePath);
+                    }
+                    catch (cleanupError) {
+                        console.warn('⚠️ Failed to clean up temp file:', cleanupError);
+                    }
+                }
+            }
+        }
+        throw new Error('Download failed after all retry attempts');
+    }
+    async checkNetworkStatus() {
         try {
-            console.log(`📥 Starting download for root hash: ${rootHash}`);
-            const tempFileName = fileName || `download_${Date.now()}_${rootHash.slice(0, 8)}`;
-            const tempFilePath = path_1.default.join(config_1.default.upload.tempDir, tempFileName);
-            if (!fs_1.default.existsSync(config_1.default.upload.tempDir)) {
-                fs_1.default.mkdirSync(config_1.default.upload.tempDir, { recursive: true });
+            const [nodes, err] = await this.indexer.selectNodes(4);
+            if (err !== null) {
+                console.error('Network status check error:', err);
+                return { connected: false, nodeCount: 0 };
             }
-            const downloadErr = await this.indexer.download(rootHash, tempFilePath, true);
-            if (downloadErr !== null) {
-                throw new Error(`Download error: ${downloadErr}`);
+            if (nodes && nodes.length > 0) {
+                console.log('Selected nodes:', nodes);
+                try {
+                    const firstNodeStatus = await nodes[0].getStatus();
+                    console.log('First selected node status:', firstNodeStatus);
+                }
+                catch (statusError) {
+                    console.warn('Failed to get node status:', statusError);
+                }
             }
-            const data = fs_1.default.readFileSync(tempFilePath);
-            const stats = fs_1.default.statSync(tempFilePath);
-            console.log(`✅ Download successful for: ${rootHash}`);
-            fs_1.default.unlinkSync(tempFilePath);
             return {
-                data,
-                fileName: tempFileName,
-                mimeType: this.getMimeType(tempFileName),
-                fileSize: stats.size,
+                connected: true,
+                nodeCount: nodes?.length || 0,
+                nodes: nodes || []
             };
         }
         catch (error) {
-            console.error('❌ Download failed:', error);
-            throw new Error(`Failed to download file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            console.error('Network status check failed:', error);
+            return { connected: false, nodeCount: 0 };
         }
+    }
+    async getWalletBalance() {
+        try {
+            const balance = await this.provider.getBalance(this.signer.address);
+            return ethers_1.ethers.formatEther(balance);
+        }
+        catch (error) {
+            console.error('Failed to get wallet balance:', error);
+            return '0';
+        }
+    }
+    getWalletAddress() {
+        return this.signer.address;
     }
     getMimeType(fileName) {
         const ext = path_1.default.extname(fileName).toLowerCase();

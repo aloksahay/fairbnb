@@ -6,6 +6,16 @@ interface Config {
         indexerRpc: string;
         privateKey: string;
     };
+    zeroGCompute: {
+        fallbackFee: number;
+    };
+    celo: {
+        rpcUrl: string;
+        chainId: number;
+    };
+    selfVerification: {
+        contractAddress: string;
+    };
     jwt: {
         secret: string;
         expiresIn: string;
