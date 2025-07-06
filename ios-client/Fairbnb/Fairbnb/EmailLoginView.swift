@@ -6,7 +6,6 @@ struct EmailLoginView: View {
     
     @State private var email = ""
     @State private var otpCode = ""
-    @State private var showingSuccess = false
     
     @FocusState private var emailFieldFocused: Bool
     @FocusState private var codeFieldFocused: Bool
@@ -68,10 +67,7 @@ struct EmailLoginView: View {
                         ErrorSection(error: error, authService: authService)
                     }
                     
-                    // Features Preview
-                    if authService.otpFlowState == .initial {
-                        FeaturesPreviewSection()
-                    }
+
                     
                     Spacer(minLength: 20)
                 }
@@ -101,16 +97,9 @@ struct EmailLoginView: View {
                 }
             }
         }
-        .alert("Welcome to FairBnB!", isPresented: $showingSuccess) {
-            Button("Get Started") {
-                dismiss()
-            }
-        } message: {
-            Text("Your account and wallet have been created successfully!")
-        }
         .onChange(of: authService.isAuthenticated) { isAuth in
             if isAuth {
-                showingSuccess = true
+                dismiss()
             }
         }
     }
@@ -430,46 +419,7 @@ struct ErrorSection: View {
     }
 }
 
-// MARK: - Features Preview Section
 
-struct FeaturesPreviewSection: View {
-    var body: some View {
-        VStack(spacing: 16) {
-            Text("What you'll get:")
-                .font(.headline)
-                .foregroundColor(.secondary)
-            
-            VStack(spacing: 12) {
-                FeatureRow(
-                    icon: "wallet.pass.fill",
-                    title: "Embedded Wallet",
-                    description: "Secure self-custodial wallet created automatically"
-                )
-                
-                FeatureRow(
-                    icon: "shield.checkered",
-                    title: "Privacy Protection",
-                    description: "Zero-knowledge proofs protect your location data"
-                )
-                
-                FeatureRow(
-                    icon: "house.circle.fill",
-                    title: "Property Booking",
-                    description: "Book properties with crypto payments"
-                )
-                
-                FeatureRow(
-                    icon: "creditcard.fill",
-                    title: "Easy Payments",
-                    description: "Send and receive payments seamlessly"
-                )
-            }
-        }
-        .padding()
-        .background(Color.gray.opacity(0.1))
-        .cornerRadius(16)
-    }
-}
 
 
 

@@ -1,68 +1,71 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getFileInfo = exports.downloadFile = exports.uploadMultipleFiles = exports.uploadFile = void 0;
+exports.getNetworkStatus = exports.checkFileExists = exports.getFileInfo = exports.downloadFile = exports.uploadMultipleFiles = exports.uploadFile = void 0;
 const zeroGStorage_1 = require("../services/zeroGStorage");
 const uploadFile = async (req, res) => {
     try {
         if (!req.file) {
             res.status(400).json({
-                success: false,
-                error: 'No file provided',
+                error: 'No file uploaded',
+                message: 'Please provide a file to upload'
             });
             return;
         }
-        zeroGStorage_1.zeroGStorage.validateFile(req.file.originalname, req.file.size, req.file.mimetype);
-        const result = await zeroGStorage_1.zeroGStorage.uploadFromBuffer(req.file.buffer, req.file.originalname, req.file.mimetype);
-        const url = zeroGStorage_1.zeroGStorage.generateFileUrl(result.rootHash, result.fileName);
-        res.status(200).json({
+        const { buffer, originalname, mimetype } = req.file;
+        zeroGStorage_1.zeroGStorage.validateFile(originalname, buffer.length, mimetype);
+        console.log(`📤 Processing upload: ${originalname} (${buffer.length} bytes, ${mimetype})`);
+        const result = await zeroGStorage_1.zeroGStorage.uploadFromBuffer(buffer, originalname, mimetype);
+        res.json({
             success: true,
-            data: {
-                ...result,
-                url,
-            },
             message: 'File uploaded successfully',
+            data: {
+                rootHash: result.rootHash,
+                txHash: result.txHash,
+                fileName: result.fileName,
+                fileSize: result.fileSize,
+                mimeType: result.mimeType,
+                uploadedAt: result.uploadedAt,
+                downloadUrl: zeroGStorage_1.zeroGStorage.generateFileUrl(result.rootHash, result.fileName)
+            }
         });
     }
     catch (error) {
-        console.error('Upload error:', error);
-        res.status(500).json({
+        console.error('Upload controller error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        const statusCode = errorMessage.includes('not allowed') ? 400 : 500;
+        res.status(statusCode).json({
             success: false,
-            error: error instanceof Error ? error.message : 'Upload failed',
+            error: 'Upload failed',
+            message: errorMessage
         });
     }
 };
 exports.uploadFile = uploadFile;
 const uploadMultipleFiles = async (req, res) => {
     try {
-        const files = req.files;
-        if (!files || files.length === 0) {
+        if (!req.files || !Array.isArray(req.files) || req.files.length === 0) {
             res.status(400).json({
                 success: false,
-                error: 'No files provided',
+                error: 'No files provided'
             });
             return;
         }
-        const uploadPromises = files.map(async (file) => {
-            zeroGStorage_1.zeroGStorage.validateFile(file.originalname, file.size, file.mimetype);
+        const results = [];
+        for (const file of req.files) {
             const result = await zeroGStorage_1.zeroGStorage.uploadFromBuffer(file.buffer, file.originalname, file.mimetype);
-            const url = zeroGStorage_1.zeroGStorage.generateFileUrl(result.rootHash, result.fileName);
-            return {
-                ...result,
-                url,
-            };
-        });
-        const results = await Promise.all(uploadPromises);
-        res.status(200).json({
+            results.push(result);
+        }
+        res.json({
             success: true,
             data: results,
-            message: `${results.length} files uploaded successfully`,
+            message: `${results.length} files uploaded successfully`
         });
     }
     catch (error) {
         console.error('Multiple upload error:', error);
         res.status(500).json({
             success: false,
-            error: error instanceof Error ? error.message : 'Upload failed',
+            error: error instanceof Error ? error.message : 'Multiple upload failed'
         });
     }
 };
@@ -73,23 +76,29 @@ const downloadFile = async (req, res) => {
         const { filename } = req.query;
         if (!rootHash) {
             res.status(400).json({
-                success: false,
-                error: 'Root hash is required',
+                error: 'Missing root hash',
+                message: 'Root hash is required for download'
             });
             return;
         }
+        console.log(`📥 Processing download: ${rootHash}`);
         const result = await zeroGStorage_1.zeroGStorage.downloadFile(rootHash, filename);
-        res.setHeader('Content-Type', result.mimeType);
-        res.setHeader('Content-Length', result.fileSize);
-        res.setHeader('Content-Disposition', `inline; filename="${result.fileName}"`);
-        res.setHeader('Cache-Control', 'public, max-age=31536000');
+        res.set({
+            'Content-Type': result.mimeType,
+            'Content-Length': result.fileSize.toString(),
+            'Content-Disposition': `attachment; filename="${result.fileName}"`,
+            'Cache-Control': 'public, max-age=31536000',
+        });
         res.send(result.data);
     }
     catch (error) {
-        console.error('Download error:', error);
-        res.status(404).json({
+        console.error('Download controller error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        const statusCode = errorMessage.includes('not found') ? 404 : 500;
+        res.status(statusCode).json({
             success: false,
-            error: error instanceof Error ? error.message : 'File not found',
+            error: 'Download failed',
+            message: errorMessage
         });
     }
 };
@@ -99,31 +108,93 @@ const getFileInfo = async (req, res) => {
         const { rootHash } = req.params;
         if (!rootHash) {
             res.status(400).json({
-                success: false,
-                error: 'Root hash is required',
+                error: 'Missing root hash',
+                message: 'Root hash is required'
             });
             return;
         }
-        const result = await zeroGStorage_1.zeroGStorage.downloadFile(rootHash);
-        res.status(200).json({
+        res.json({
             success: true,
             data: {
                 rootHash,
-                exists: true,
-                size: result.fileSize,
-                mimeType: result.mimeType,
-                url: zeroGStorage_1.zeroGStorage.generateFileUrl(rootHash),
-            },
-            message: 'File information retrieved successfully',
+                downloadUrl: zeroGStorage_1.zeroGStorage.generateFileUrl(rootHash),
+                available: true
+            }
         });
     }
     catch (error) {
-        console.error('File info error:', error);
-        res.status(404).json({
+        console.error('File info controller error:', error);
+        res.status(500).json({
             success: false,
-            error: error instanceof Error ? error.message : 'File not found',
+            error: 'Failed to get file info',
+            message: error instanceof Error ? error.message : 'Unknown error occurred'
         });
     }
 };
 exports.getFileInfo = getFileInfo;
+const checkFileExists = async (req, res) => {
+    try {
+        const { rootHash } = req.params;
+        if (!rootHash) {
+            res.status(400).json({
+                success: false,
+                error: 'Root hash is required'
+            });
+            return;
+        }
+        res.json({
+            success: true,
+            data: {
+                rootHash,
+                exists: true,
+                downloadUrl: zeroGStorage_1.zeroGStorage.generateFileUrl(rootHash)
+            },
+            message: 'File existence checked'
+        });
+    }
+    catch (error) {
+        console.error('File existence check error:', error);
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to check file existence'
+        });
+    }
+};
+exports.checkFileExists = checkFileExists;
+const getNetworkStatus = async (req, res) => {
+    try {
+        const status = await zeroGStorage_1.zeroGStorage.checkNetworkStatus();
+        const balance = await zeroGStorage_1.zeroGStorage.getWalletBalance();
+        const walletAddress = zeroGStorage_1.zeroGStorage.getWalletAddress();
+        res.json({
+            success: true,
+            data: {
+                network: {
+                    connected: status.connected,
+                    nodeCount: status.nodeCount,
+                    nodes: status.nodes?.map(node => ({
+                        url: node.url,
+                        timeout: node.timeout,
+                        retry: node.retry
+                    })) || []
+                },
+                wallet: {
+                    address: walletAddress,
+                    balance: balance,
+                    balanceETH: `${balance} ETH`
+                },
+                timestamp: new Date().toISOString()
+            }
+        });
+    }
+    catch (error) {
+        console.error('Network status controller error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to get network status',
+            message: error instanceof Error ? error.message : 'Unknown error occurred'
+        });
+    }
+};
+exports.getNetworkStatus = getNetworkStatus;
 //# sourceMappingURL=fileController.js.map

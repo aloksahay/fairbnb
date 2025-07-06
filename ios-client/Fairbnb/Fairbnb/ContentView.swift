@@ -15,7 +15,7 @@ struct ContentView: View {
     var body: some View {
         Group {
             if authService.isAuthenticated {
-                ListingsView(authService: authService, showingWalletSheet: $showingWalletSheet)
+                MainAppView(authService: authService, showingWalletSheet: $showingWalletSheet)
             } else {
                 LoginView(authService: authService, showingLoginSheet: $showingLoginSheet)
             }
@@ -56,14 +56,6 @@ struct LoginView: View {
                         .multilineTextAlignment(.center)
                 }
                 
-                // Features
-                VStack(spacing: 16) {
-                    FeatureRow(icon: "shield.checkered", title: "Zero-Knowledge Privacy", description: "Your exact location stays private")
-                    FeatureRow(icon: "wallet.pass", title: "Embedded Wallet", description: "Secure crypto payments built-in")
-                    FeatureRow(icon: "lock.shield", title: "Self-Custodial", description: "You control your keys and funds")
-                }
-                .padding(.horizontal)
-                
                 Spacer()
                 
                 // Login Button
@@ -82,13 +74,6 @@ struct LoginView: View {
                     .cornerRadius(12)
                 }
                 .padding(.horizontal)
-                
-                // Test Self SDK Button
-                TestSelfSDKButton()
-                
-                Text("New to FairBnB? Sign up during login")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
                 
                 Spacer()
             }
@@ -127,122 +112,50 @@ struct FeatureRow: View {
 
 
 
-// MARK: - Listings View
-struct ListingsView: View {
+// MARK: - Main App View
+struct MainAppView: View {
     @ObservedObject var authService: PrivyAuthService
     @Binding var showingWalletSheet: Bool
     @State private var showingProfileMenu = false
+    @State private var showingCreateListing = false
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 0) {
-                // Listings Section
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Your Listings")
-                        .font(.title2)
-                        .fontWeight(.bold)
+            ListingsView()
+                .navigationTitle("FairBnB")
+                .navigationBarTitleDisplayMode(.large)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button(action: {
+                            showingProfileMenu = true
+                        }) {
+                            Image(systemName: "person.circle.fill")
+                                .font(.title2)
+                                .foregroundColor(.primary)
+                        }
+                    }
                     
-                    // Add Listing Button
-                    AddListingCard()
-                }
-                .padding(.top)
-                .padding(.horizontal)
-                
-                Spacer()
-            }
-            .navigationTitle("Listings")
-            .navigationBarTitleDisplayMode(NavigationBarItem.TitleDisplayMode.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {
-                        showingProfileMenu = true
-                    }) {
-                        Image(systemName: "line.horizontal.3")
-                            .font(.title2)
-                            .foregroundColor(.primary)
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(action: {
+                            showingCreateListing = true
+                        }) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.title2)
+                                .foregroundColor(.primary)
+                        }
                     }
                 }
-            }
-            .sheet(isPresented: $showingProfileMenu) {
-                ProfileMenuView(authService: authService, isPresented: $showingProfileMenu)
-            }
+                .sheet(isPresented: $showingProfileMenu) {
+                    ProfileMenuView(authService: authService, isPresented: $showingProfileMenu)
+                }
+                .sheet(isPresented: $showingCreateListing) {
+                    CreateListingView()
+                }
         }
     }
 }
 
-// MARK: - Listing Models
-struct Listing {
-    let id = UUID()
-    let title: String
-    let location: String
-    let nightlyRate: Int
-    let imageName: String
-}
 
-// MARK: - Listing Card
-struct ListingCard: View {
-    let listing: Listing
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Image placeholder
-            Rectangle()
-                .fill(Color.gray.opacity(0.3))
-                .frame(width: 200, height: 120)
-                .cornerRadius(12)
-                .overlay(
-                    Image(systemName: listing.imageName)
-                        .font(.system(size: 40))
-                        .foregroundColor(.gray)
-                )
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(listing.title)
-                    .font(.headline)
-                    .fontWeight(.medium)
-                    .lineLimit(2)
-                
-                Text(listing.location)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                
-                Text("$\(listing.nightlyRate)/night")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.green)
-            }
-        }
-        .frame(width: 200)
-        .padding()
-        .background(Color.white)
-        .cornerRadius(16)
-        .shadow(radius: 2)
-    }
-}
-
-// MARK: - Add Listing Card
-struct AddListingCard: View {
-    var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "plus.circle.fill")
-                .font(.system(size: 50))
-                .foregroundColor(.blue)
-            
-            Text("Add New Listing")
-                .font(.headline)
-                .fontWeight(.medium)
-                .foregroundColor(.primary)
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 120)
-        .background(Color.blue.opacity(0.1))
-        .cornerRadius(16)
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.blue, style: StrokeStyle(lineWidth: 2, dash: [5]))
-        )
-    }
-}
 
 // MARK: - Profile Menu View
 struct ProfileMenuView: View {
@@ -403,8 +316,10 @@ struct ProfileMenuView: View {
         // Close profile menu and start verification
         isPresented = false
         
+        print("🧪 Starting Self SDK verification with user wallet address: \(userAddress)")
+        
         Task {
-            // Start verification
+            // Start verification with the actual user's wallet address
             await selfService.startVerification(
                 userAddress: userAddress
             )
@@ -659,94 +574,7 @@ struct StatusRow: View {
     }
 }
 
-// MARK: - Test Self SDK Button
-struct TestSelfSDKButton: View {
-    @StateObject private var selfService = SelfVerificationService()
-    @State private var isLoading = false
-    @State private var showingAlert = false
-    @State private var alertMessage = ""
-    
-    var body: some View {
-        Button(action: {
-            testSelfSDK()
-        }) {
-            HStack {
-                if isLoading {
-                    ProgressView()
-                        .scaleEffect(0.8)
-                        .foregroundColor(.white)
-                } else {
-                    Image(systemName: "shield.checkered")
-                }
-                Text(isLoading ? "Testing Self SDK..." : "Test Self SDK")
-            }
-            .font(.subheadline)
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(Color.purple)
-            .cornerRadius(12)
-        }
-        .disabled(isLoading)
-        .padding(.horizontal)
-        .alert("Self SDK Test", isPresented: $showingAlert) {
-            Button("OK") { }
-        } message: {
-            Text(alertMessage)
-        }
-    }
-    
-    private func testSelfSDK() {
-        isLoading = true
-        
-        // Generate a random test wallet address
-        let testWalletAddress = generateRandomWalletAddress()
-        
-        print("🧪 Testing Self SDK with random wallet address: \(testWalletAddress)")
-        
-        Task {
-            do {
-                // Test the Self SDK verification flow
-                await selfService.startVerification(
-                    userAddress: testWalletAddress
-                )
-                
-                await MainActor.run {
-                    isLoading = false
-                    
-                    if let error = selfService.errorMessage {
-                        alertMessage = "Test failed: \(error)"
-                        showingAlert = true
-                    } else {
-                        alertMessage = "Self SDK test completed! Check console for deeplink details.\n\nTest wallet: \(testWalletAddress)"
-                        showingAlert = true
-                    }
-                }
-                
-            } catch {
-                await MainActor.run {
-                    isLoading = false
-                    alertMessage = "Test error: \(error.localizedDescription)"
-                    showingAlert = true
-                }
-            }
-        }
-    }
-    
-    private func generateRandomWalletAddress() -> String {
-        // Generate a random Ethereum-style address (0x + 40 hex characters)
-        let hexChars = "0123456789abcdef"
-        var address = "0x"
-        
-        for _ in 0..<40 {
-            let randomIndex = Int.random(in: 0..<hexChars.count)
-            let char = hexChars[hexChars.index(hexChars.startIndex, offsetBy: randomIndex)]
-            address.append(char)
-        }
-        
-        return address
-    }
-}
+
 
 #Preview {
     ContentView()

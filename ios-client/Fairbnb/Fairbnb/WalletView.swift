@@ -84,12 +84,12 @@ struct WalletHeaderSection: View {
                     ProgressView()
                         .scaleEffect(0.8)
                 } else {
-                    Text("$\(authService.walletBalance)")
+                    Text("\(authService.walletBalance) MNT")
                         .font(.largeTitle)
                         .fontWeight(.bold)
                 }
                 
-                Text("USD Balance")
+                Text("MNT Balance")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
@@ -390,11 +390,11 @@ struct SendTokensView: View {
                         }
                         
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Amount (USD)")
+                            Text("Amount (MNT)")
                                 .font(.subheadline)
                                 .fontWeight(.medium)
                             
-                            TextField("0.00", text: $amount)
+                            TextField("0", text: $amount)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .keyboardType(.decimalPad)
                         }
@@ -671,7 +671,7 @@ struct TransactionRow: View {
             Spacer()
             
             VStack(alignment: .trailing, spacing: 2) {
-                Text("\(transaction.type == .sent ? "-" : "+")$\(transaction.amount)")
+                Text("\(transaction.type == .sent ? "-" : "+")\(transaction.amount) MNT")
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundColor(transaction.type == .sent ? .red : .green)

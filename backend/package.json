@@ -11,7 +11,9 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "compile": "npx hardhat compile",
     "deploy:testnet": "npx ts-node scripts/deploy.ts",
+    "deploy:mantle": "npx hardhat run scripts/deployListings.ts --network mantleTestnet",
     "verify": "npx hardhat verify --network alfajores",
+    "verify:mantle": "npx hardhat verify --network mantleTestnet",
     "clean": "rm -rf dist",
     "prebuild": "npm run clean",
     "postbuild": "cp -r src/public dist/ || true"
@@ -28,6 +30,7 @@
   "dependencies": {
     "@0glabs/0g-serving-broker": "^0.2.13",
     "@0glabs/0g-ts-sdk": "^0.2.1",
+    "@openzeppelin/contracts": "^5.3.0",
     "@selfxyz/core": "^1.0.5-beta.1",
     "@selfxyz/qrcode": "^1.0.10-beta.1",
     "@types/bcryptjs": "^2.4.6",
